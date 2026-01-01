@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HIG Docker Build Kit CLI
+Docker App Build Kit (dapp-bk) CLI
 """
 import os
 import sys
