@@ -1,0 +1,61 @@
+ARG BASE_IMAGE=python:3.13-slim-bookworm
+FROM ${BASE_IMAGE}
+
+ENV WORKDIR="/app"
+ENV APP_PORT_HOST=${APP_PORT_HOST}
+ENV APP_PORT_CONTAINER=${APP_PORT_CONTAINER}
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+RUN echo "###### DOCKER BUILD STARTED #####"
+
+RUN echo "Installing necessary packages..." && \
+    apt-get update && \
+    apt-get install -y \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        libpq-dev \
+        libssl-dev \
+        openssl \
+        vim && \
+    echo "...finished installing necessary packages." && \
+    echo "Updating CA certificates..." && \
+    update-ca-certificates && \
+    echo "...finished updating CA certificates." && \
+    echo "Cleaning up to reduce image size..." && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "...finished cleaning up."
+
+# Install pip and poetry
+RUN echo "Installing pip and poetry..." && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false && \
+    echo "...finished installing pip and poetry."
+
+ENV TZ=America/New_York
+RUN echo "Setting timezone to $TZ..." && \
+    ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo "...finished setting timezone."
+
+RUN echo "Creating app directory..." && \
+    mkdir -p $WORKDIR && \
+    echo "...finished creating app directory."
+
+WORKDIR $WORKDIR
+
+RUN echo "Setting app directory permissions..." && \
+    useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser $WORKDIR && \
+    echo "...finished setting app directory permissions."
+
+USER appuser
+
+RUN echo "###### DOCKER BUILD COMPLETED #####"
+
+EXPOSE ${APP_PORT_HOST} ${APP_PORT_CONTAINER}
+
+CMD ["python", "app.py"]

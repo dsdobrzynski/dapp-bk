@@ -1,0 +1,54 @@
+ARG BASE_IMAGE=node:22-bookworm-slim
+FROM ${BASE_IMAGE}
+
+ENV WORKDIR="/app"
+ENV APP_PORT_HOST=${APP_PORT_HOST}
+ENV APP_PORT_CONTAINER=${APP_PORT_CONTAINER}
+ENV NODE_ENV=production
+
+RUN echo "###### DOCKER BUILD STARTED #####"
+
+RUN echo "Installing necessary packages..." && \
+    apt-get update && \
+    apt-get install -y \
+        ca-certificates \
+        curl \
+        git \
+        openssl \
+        vim && \
+    echo "...finished installing necessary packages." && \
+    echo "Updating CA certificates..." && \
+    update-ca-certificates && \
+    echo "...finished updating CA certificates." && \
+    echo "Cleaning up to reduce image size..." && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "...finished cleaning up."
+
+# Install pnpm (faster alternative to npm)
+RUN echo "Installing pnpm..." && \
+    npm install -g pnpm && \
+    echo "...finished installing pnpm."
+
+ENV TZ=America/New_York
+RUN echo "Setting timezone to $TZ..." && \
+    ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo "...finished setting timezone."
+
+RUN echo "Creating app directory..." && \
+    mkdir -p $WORKDIR && \
+    echo "...finished creating app directory."
+
+WORKDIR $WORKDIR
+
+RUN echo "Setting app directory permissions..." && \
+    chown -R node:node $WORKDIR && \
+    echo "...finished setting app directory permissions."
+
+USER node
+
+RUN echo "###### DOCKER BUILD COMPLETED #####"
+
+EXPOSE ${APP_PORT_HOST} ${APP_PORT_CONTAINER}
+
+CMD ["node", "index.js"]
