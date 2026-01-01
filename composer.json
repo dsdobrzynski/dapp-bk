@@ -1,0 +1,29 @@
+{
+    "name": "dsdobrzynski/docker-app-build-kit",
+    "description": "Docker container build and management toolkit for multi-stack application development",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["docker", "build", "containers", "php", "node", "python", "java", "mysql", "postgres", "mongodb"],
+    "authors": [
+        {
+            "name": "Your Name",
+            "email": "your.email@example.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "symfony/console": "^5.4|^6.0|^7.0",
+        "symfony/process": "^5.4|^6.0|^7.0",
+        "symfony/dotenv": "^5.4|^6.0|^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Dsdobrzynski\\DockerAppBuildKit\\": "src/"
+        }
+    },
+    "bin": [
+        "bin/dapp-bk"
+    ],
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
