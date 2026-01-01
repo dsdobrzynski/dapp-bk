@@ -1,7 +1,7 @@
 {
-  "name": "@dsdobrzynski/docker-app-build-kit",
+  "name": "@dsdobrzynski/dapp-bk",
   "version": "1.0.0",
-  "description": "Docker container build and management toolkit for multi-stack application development",
+  "description": "Docker App Build Kit (dapp-bk) - Docker container build and management toolkit for multi-stack application development",
   "main": "index.js",
   "type": "module",
   "bin": {
