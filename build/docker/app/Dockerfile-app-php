@@ -1,0 +1,94 @@
+ARG BASE_IMAGE=php:8.4.16-apache-bookworm
+FROM ${BASE_IMAGE}
+
+ENV WEBDIR="/var/www/html"
+ENV APP_PORT_HOST=${APP_PORT_HOST}
+ENV APP_PORT_CONTAINER=${APP_PORT_CONTAINER}
+
+RUN echo "###### DOCKER BUILD STARTED #####"
+
+RUN echo "Installing necessary packages..." && \
+    apt-get update && \
+    apt-get install -y \
+        build-essential \
+        ca-certificates \
+        libicu-dev \
+        libpng-dev \
+        libpq-dev \
+        libssl3 \
+        libxml2-dev \
+        libzip-dev \
+        linux-libc-dev \
+        memcached \
+        nano \
+        openssl \
+        postgresql \
+        postgresql-contrib \
+        redis \
+        ssh \
+        sudo \
+        unzip \
+        uuid \
+        vim \
+        zip && \
+    echo "...finished installing necessary packages." && \
+    echo "Updating CA certificates..." && \
+    update-ca-certificates && \
+    echo "...finished updating CA certificates." && \
+    echo "Cleaning up to reduce image size..." && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "...finished cleaning up."
+
+RUN echo "Installing Composer..." && \
+    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
+    chmod +x /usr/local/bin/composer && \
+    echo "...finished installing Composer."
+
+RUN echo "Enabling apache modules..." && \
+    a2enmod \
+        actions \
+        autoindex \
+        headers \
+        rewrite \
+        ssl && \
+    echo "...finished enabling apache modules"
+
+RUN echo "Installing, configuring, and enabling PHP extensions..." && \
+    docker-php-ext-install \
+        bcmath \
+        gd \
+        mysqli \
+        opcache \
+        pcntl \
+        pdo \
+        pdo_mysql \
+        pdo_pgsql \
+        pgsql \
+        soap \
+        sockets \
+        zip && \
+    docker-php-ext-configure intl && \
+    docker-php-ext-install intl && \
+    echo "...finished installing PHP extensions."
+
+ENV TZ=America/New_York
+RUN echo "Setting timezone to $TZ..." && \
+    ln -fs /usr/share/zoneinfo/America/$TZ /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    echo "...finished setting timezone."
+
+RUN echo "Creating rtqi web directory..." && \
+    mkdir -p $WEBDIR && \
+    echo "...finished creating rtqi web directory."
+
+RUN echo "Setting web directory permissions..." && \
+    chmod 755 -R $WEBDIR && \
+    chown -R www-data:www-data $WEBDIR && \
+    echo "...finished setting web directory permissions."
+
+RUN echo "###### DOCKER BUILD COMPLETED #####"
+
+EXPOSE 80 ${APP_PORT_HOST} ${APP_PORT_CONTAINER}
+
+ENTRYPOINT ["apache2-foreground"]
