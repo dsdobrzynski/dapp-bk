@@ -52,9 +52,8 @@ class BuildCommand extends Command
         $this->displayConfiguration($io, $input);
 
         // Ask for confirmation
-        $helper = $this->getHelper('question');
         $question = new ConfirmationQuestion('Continue with these settings? (y/n) ', false);
-        if (!$helper->ask($input, $output, $question)) {
+        if (!$io->askQuestion($question)) {
             $io->warning('Aborted by user');
             return Command::SUCCESS;
         }

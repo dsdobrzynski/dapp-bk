@@ -7,6 +7,9 @@ use Dsdobrzynski\DockerAppBuildKit\Console\Commands\BuildCommand;
 use Dsdobrzynski\DockerAppBuildKit\Console\Commands\ComposerInstallCommand;
 use Dsdobrzynski\DockerAppBuildKit\Console\Commands\NetworkFixCommand;
 
+/**
+ * @method \Symfony\Component\Console\Command\Command add(\Symfony\Component\Console\Command\Command $command)
+ */
 class Application extends BaseApplication
 {
     const VERSION = '1.0.0';
