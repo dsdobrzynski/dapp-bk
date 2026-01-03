@@ -37,7 +37,7 @@ class BuildCommand extends Command
         // Find project root (where .env is located)
         $this->projectRoot = $this->findProjectRoot();
         if (!$this->projectRoot) {
-            $io->error('Could not find project root with build/.env file');
+            $io->error('Could not find project root with .env file');
             return Command::FAILURE;
         }
 
@@ -86,7 +86,7 @@ class BuildCommand extends Command
         $maxLevels = 5;
 
         for ($i = 0; $i < $maxLevels; $i++) {
-            if (file_exists($current . '/build/.env')) {
+            if (file_exists($current . '/.env')) {
                 return $current;
             }
             $parent = dirname($current);
@@ -106,11 +106,11 @@ class BuildCommand extends Command
 
     private function loadEnvironment(SymfonyStyle $io): bool
     {
-        $envFile = $this->projectRoot . '/build/.env';
+        $envFile = $this->projectRoot . '/.env';
         
         if (!file_exists($envFile)) {
             $io->error("Environment file not found: $envFile");
-            $io->note('Please create build/.env from build/.env.example');
+            $io->note('Please create .env from .env.example');
             return false;
         }
 
@@ -119,7 +119,7 @@ class BuildCommand extends Command
             $this->env = $dotenv->parse(file_get_contents($envFile));
 
             if (empty($this->env['PROJECT_NAME'])) {
-                $io->error('PROJECT_NAME must be set in build/.env');
+                $io->error('PROJECT_NAME must be set in .env');
                 return false;
             }
 
@@ -337,10 +337,10 @@ class BuildCommand extends Command
     private function getDefaultDockerfile(string $appType): string
     {
         $dockerfiles = [
-            'php-apache' => 'build/docker/app/Dockerfile-app-php',
-            'node' => 'build/docker/app/Dockerfile-app-node',
-            'python' => 'build/docker/app/Dockerfile-app-python',
-            'java' => 'build/docker/app/Dockerfile-app-java',
+            'php-apache' => 'docker/app/Dockerfile-app-php',
+            'node' => 'docker/app/Dockerfile-app-node',
+            'python' => 'docker/app/Dockerfile-app-python',
+            'java' => 'docker/app/Dockerfile-app-java',
         ];
 
         return $dockerfiles[$appType] ?? $dockerfiles['php-apache'];

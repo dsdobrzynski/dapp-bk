@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Find project root directory containing build/.env
+ * Find project root directory containing .env
  */
 export async function findProjectRoot() {
   let current = process.cwd();
@@ -38,7 +38,7 @@ export async function findProjectRoot() {
 }
 
 /**
- * Load environment variables from build/.env
+ * Load environment variables from .env
  */
 export async function loadEnvironment(projectRoot) {
   const envFile = path.join(projectRoot, 'build', '.env');
@@ -47,7 +47,7 @@ export async function loadEnvironment(projectRoot) {
     await fs.access(envFile);
   } catch {
     console.error(chalk.red(`Error: Environment file not found: ${envFile}`));
-    console.log('Please create build/.env from build/.env.example');
+    console.log('Please create .env from .env.example');
     return null;
   }
 
@@ -61,7 +61,7 @@ export async function loadEnvironment(projectRoot) {
   const env = envConfig.parsed;
 
   if (!env.PROJECT_NAME) {
-    console.error(chalk.red('Error: PROJECT_NAME must be set in build/.env'));
+    console.error(chalk.red('Error: PROJECT_NAME must be set in .env'));
     return null;
   }
 
@@ -96,7 +96,7 @@ export async function build(options) {
   // Find project root
   const projectRoot = await findProjectRoot();
   if (!projectRoot) {
-    console.error(chalk.red('Error: Could not find project root with build/.env file'));
+    console.error(chalk.red('Error: Could not find project root with .env file'));
     process.exit(1);
   }
 
@@ -321,10 +321,10 @@ async function handleDataContainers(docker, env, projectRoot, rebuild, importDat
  */
 function getDefaultDockerfile(appType) {
   const dockerfiles = {
-    'php-apache': 'build/docker/app/Dockerfile-app-php',
-    'node': 'build/docker/app/Dockerfile-app-node',
-    'python': 'build/docker/app/Dockerfile-app-python',
-    'java': 'build/docker/app/Dockerfile-app-java',
+    'php-apache': 'docker/app/Dockerfile-app-php',
+    'node': 'docker/app/Dockerfile-app-node',
+    'python': 'docker/app/Dockerfile-app-python',
+    'java': 'docker/app/Dockerfile-app-java',
   };
   return dockerfiles[appType] || dockerfiles['php-apache'];
 }
