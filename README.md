@@ -9,13 +9,13 @@ Available in **three implementations**: PHP, Python, and Node.js - choose the on
 ### PHP Version (via Composer)
 
 ```bash
-composer require dsdobrzynski/docker-app-build-kit
+composer require dsdobrzynski/dapp-bk
 ```
 
 **Usage:**
 ```bash
 # Global install
-composer global require dsdobrzynski/docker-app-build-kit
+composer global require dsdobrzynski/dapp-bk
 dapp-bk build
 
 # Project install
@@ -25,7 +25,7 @@ vendor/bin/dapp-bk build
 ### Python Version (via pip)
 
 ```bash
-pip install docker-app-build-kit
+pip install dapp-bk
 ```
 
 **Usage:**
@@ -38,7 +38,7 @@ dapp-bk-py network:fix
 ### Node.js Version (via npm)
 
 ```bash
-npm install -g @dsdobrzynski/docker-app-build-kit
+npm install -g @dsdobrzynski/dapp-bk
 ```
 
 **Usage:**
@@ -51,8 +51,8 @@ dapp-bk-node network:fix
 ### From Source
 
 ```bash
-git clone https://github.com/dsdobrzynski/docker-app-build-kit
-cd docker-app-build-kit
+git clone https://github.com/dsdobrzynski/dapp-bk
+cd dapp-bk
 
 # For PHP
 composer install
@@ -69,22 +69,57 @@ node nodejs/bin/dapp-bk-node.js build
 
 ## Quick Start
 
-1. **Create your project structure**:
+1. **Install the package** (choose your preferred method from Installation above)
+
+2. **Copy the `.env.example` file to your project root**:
+
+When installed via Composer:
+```bash
+cp vendor/dsdobrzynski/dapp-bk/.env.example .env
+```
+
+When installed via pip:
+```bash
+# Find the package location
+pip show dapp-bk | grep Location
+# Then copy from that location, or download from GitHub
+curl -o .env https://raw.githubusercontent.com/dsdobrzynski/dapp-bk/main/.env.example
+```
+
+When installed via npm:
+```bash
+cp node_modules/@dsdobrzynski/dapp-bk/.env.example .env
+```
+
+**Your project structure should look like:**
 ```
 your-project/
-├── .env
-├── .env.example
-├── src/
-└── ...
+├── .env                    # Your configuration (in project root)
+├── composer.json           # (if using PHP)
+├── package.json            # (if using Node.js)
+├── docker/                 # Optional: custom Dockerfiles
+│   ├── app/
+│   └── data-rel/
+├── src/                    # Your application code
+└── vendor/                 # (if using PHP)
+    └── dsdobrzynski/
+        └── dapp-bk/        # Installed package
 ```
 
-2. **Configure your environment**:
+3. **Configure your environment**:
 ```bash
-cp .env.example .env
-# Edit .env with your settings
+# Edit .env with your project-specific settings
+nano .env  # or your preferred editor
 ```
 
-3. **Build and start containers**:
+**Required settings:**
+- `PROJECT_NAME` - Your project identifier
+- `APP_TYPE` - Application type (php-apache, node, python, java)
+- `APP_HOST_PORT` - Port for accessing your app (e.g., 8080)
+- `APP_HOST_VOLUME_PATH` - Path to your source code (e.g., "./src")
+- `DATA_REL_TYPE` - Database type (postgres, mysql, mariadb)
+
+4. **Build and start containers**:
 
 **PHP:**
 ```bash
@@ -393,5 +428,5 @@ Contributions are welcome! Please submit pull requests or open issues on GitHub.
 ## Support
 
 For issues and questions:
-- GitHub Issues: https://github.com/dsdobrzynski/docker-app-build-kit/issues
-- Documentation: https://github.com/dsdobrzynski/docker-app-build-kit#readme
+- GitHub Issues: https://github.com/dsdobrzynski/dapp-bk/issues
+- Documentation: https://github.com/dsdobrzynski/dapp-bk#readme
