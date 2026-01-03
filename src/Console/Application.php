@@ -3,6 +3,9 @@
 namespace Dsdobrzynski\DockerAppBuildKit\Console;
 
 use Symfony\Component\Console\Application as BaseApplication;
+use Dsdobrzynski\DockerAppBuildKit\Console\Commands\BuildCommand;
+use Dsdobrzynski\DockerAppBuildKit\Console\Commands\ComposerInstallCommand;
+use Dsdobrzynski\DockerAppBuildKit\Console\Commands\NetworkFixCommand;
 
 class Application extends BaseApplication
 {
@@ -12,8 +15,8 @@ class Application extends BaseApplication
     {
         parent::__construct('Docker App Build Kit', self::VERSION);
 
-        $this->add(new Commands\BuildCommand());
-        $this->add(new Commands\ComposerInstallCommand());
-        $this->add(new Commands\NetworkFixCommand());
+        $this->add(new BuildCommand());
+        $this->add(new ComposerInstallCommand());
+        $this->add(new NetworkFixCommand());
     }
 }
