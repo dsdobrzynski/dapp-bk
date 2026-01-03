@@ -1,3 +1,98 @@
-vendor
+#################
+# Environment & Secrets
+#################
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+#################
+# Dependencies
+#################
+vendor/
 composer.lock
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.Python
+venv/
+env/
+ENV/
+.venv
+
+#################
+# Build & Output
+#################
+dist/
+build/
+out/
+*.log
+
+#################
+# OS Files
+#################
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+#################
+# IDEs & Editors
+#################
+# VS Code
+.vscode/
+*.code-workspace
+!*.code-workspace
+
+# JetBrains (PhpStorm, WebStorm, PyCharm, IntelliJ, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+#################
+# Temporary Files
+#################
+*.tmp
+*.temp
+*.bak
+*.cache
+.sass-cache/
+*.pid
+*.seed
+*.pid.lock
 
