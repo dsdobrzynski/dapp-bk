@@ -69,20 +69,19 @@ node nodejs/bin/dapp-bk-node.js build
 
 ## Quick Start
 
-1. **Create your project structure with a `build/` directory**:
+1. **Create your project structure**:
 ```
 your-project/
-├── build/
-│   ├── .env
-│   └── .env.example
+├── .env
+├── .env.example
 ├── src/
 └── ...
 ```
 
 2. **Configure your environment**:
 ```bash
-cp build/.env.example build/.env
-# Edit build/.env with your settings
+cp .env.example .env
+# Edit .env with your settings
 ```
 
 3. **Build and start containers**:
@@ -180,7 +179,7 @@ This command handles platform-specific network issues on Windows and Linux.
 
 ### Required Variables
 
-Create `build/.env` from `build/.env.example`:
+Create `.env` from `.env.example`:
 
 ```env
 # Project Configuration
@@ -255,18 +254,56 @@ docker/
 Override default Dockerfiles in your `.env`:
 
 ```env
-APP_DOCKERFILE=build/docker/app/Dockerfile-app-custom
-DATA_REL_DOCKERFILE=build/docker/data-rel/Dockerfile-data-custom
+APP_DOCKERFILE=docker/app/Dockerfile-app-custom
+DATA_REL_DOCKERFILE=docker/data-rel/Dockerfile-data-custom
 ```
 
-### Volume Mounts
+### Volume Mounts (Bind Mount Approach)
 
-Mount your source code into the container:
+Mount your local source code directory into the container for live development. This is the recommended approach for local development as changes to your code are immediately reflected in the running container without requiring a rebuild.
+
+**Configuration in `.env`:**
 
 ```env
-APP_VOLUME_HOST=./src
-APP_VOLUME_CONTAINER=/var/www/html
+# Map local source code to container webroot
+APP_HOST_VOLUME_PATH="/absolute/path/to/your/sourcecode"
+APP_CONTAINER_VOLUME_PATH="/var/www/html"
 ```
+
+**Platform-Specific Examples:**
+
+**Windows:**
+```env
+APP_HOST_VOLUME_PATH="C:/Users/yourname/projects/myapp/src"
+APP_CONTAINER_VOLUME_PATH="/var/www/html"
+```
+
+**Linux/Mac:**
+```env
+APP_HOST_VOLUME_PATH="/home/yourname/projects/myapp/src"
+APP_CONTAINER_VOLUME_PATH="/var/www/html"
+```
+
+**Relative Path (from project root):**
+```env
+APP_HOST_VOLUME_PATH="./src"
+APP_CONTAINER_VOLUME_PATH="/var/www/html"
+```
+
+**How It Works:**
+- The toolkit uses Docker's `-v` flag to create a bind mount
+- Your local files at `APP_HOST_VOLUME_PATH` are mapped directly to `APP_CONTAINER_VOLUME_PATH` in the container
+- Any changes you make on your host system are immediately visible inside the container
+- Perfect for development workflow - no rebuild needed after code changes
+
+**For Database Containers:**
+```env
+# PostgreSQL example
+DATA_REL_HOST_VOLUME_PATH="/path/to/postgres/data"
+DATA_REL_CONTAINER_VOLUME_PATH="/var/lib/postgresql/data"
+```
+
+**Note:** If volume paths are not set or left empty, no volume mapping will be configured and the container will use its internal filesystem only.
 
 ### AWS ECR Integration
 
@@ -288,8 +325,8 @@ If you're currently using the bash scripts (`scripts/docker-build.sh`, `scripts/
 
 **Before:**
 ```bash
-bash build/scripts/docker-build.sh --rebuild-app --import-data
-bash build/scripts/app-build.sh
+bash app/scripts/docker-build.sh --rebuild-app --import-data
+bash app/scripts/app-build.sh
 ```
 
 **After (choose your preferred language):**

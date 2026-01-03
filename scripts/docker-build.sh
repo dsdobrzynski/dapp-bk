@@ -29,14 +29,14 @@ cd "$(dirname "$0")/../.."
 
 echo "Current directory: $(pwd)"
 
-# Load environment variables from build/.env
+# Load environment variables from .env
 set -a
-source build/.env
+source .env
 set +a
 
 # Get project name from .env
 if [ -z "$PROJECT_NAME" ]; then
-    echo "Error: You must set PROJECT_NAME in build/.env. This will be used for naming containers."
+    echo "Error: You must set PROJECT_NAME in .env. This will be used for naming containers."
     exit 1
 fi
 
@@ -154,16 +154,16 @@ if [[ "$REBUILD_OR_NEW_APP" == "1" ]]; then
     if [[ -z "$APP_DOCKERFILE" ]]; then
         case "$APP_TYPE" in
             php-apache)
-                APP_DOCKERFILE="build/docker/app/Dockerfile-app-php"
+                APP_DOCKERFILE="docker/app/Dockerfile-app-php"
                 ;;
             node)
-                APP_DOCKERFILE="build/docker/app/Dockerfile-app-node"
+                APP_DOCKERFILE="docker/app/Dockerfile-app-node"
                 ;;
             python)
-                APP_DOCKERFILE="build/docker/app/Dockerfile-app-python"
+                APP_DOCKERFILE="docker/app/Dockerfile-app-python"
                 ;;
             java)
-                APP_DOCKERFILE="build/docker/app/Dockerfile-app-java"
+                APP_DOCKERFILE="docker/app/Dockerfile-app-java"
                 ;;
             *)
                 echo "Error: Unsupported APP_TYPE '$APP_TYPE'. Must be php-apache, node, python, or java."
@@ -306,13 +306,13 @@ if [[ "$REBUILD_OR_NEW_DATA" == "1" ]]; then
     if [[ -z "$DATA_REL_DOCKERFILE" ]]; then
         case "$DATA_REL_TYPE" in
             postgres)
-                DATA_REL_DOCKERFILE="build/docker/data-rel/Dockerfile-data-postgres"
+                DATA_REL_DOCKERFILE="docker/data-rel/Dockerfile-data-postgres"
                 ;;
             mysql)
-                DATA_REL_DOCKERFILE="build/docker/data-rel/Dockerfile-data-mysql"
+                DATA_REL_DOCKERFILE="docker/data-rel/Dockerfile-data-mysql"
                 ;;
             mariadb)
-                DATA_REL_DOCKERFILE="build/docker/data-rel/Dockerfile-data-mariadb"
+                DATA_REL_DOCKERFILE="docker/data-rel/Dockerfile-data-mariadb"
                 ;;
             *)
                 echo "Error: Unsupported DATA_REL_TYPE '$DATA_REL_TYPE'. Must be postgres, mysql, or mariadb."
@@ -469,10 +469,10 @@ if [[ "$REBUILD_OR_NEW_DATA_NONREL" == "1" ]]; then
     if [[ -z "$DATA_NONREL_DOCKERFILE" ]]; then
         case "$DATA_NONREL_TYPE" in
             mongodb)
-                DATA_NONREL_DOCKERFILE="build/docker/data-nonrel/Dockerfile-data-mongodb"
+                DATA_NONREL_DOCKERFILE="docker/data-nonrel/Dockerfile-data-mongodb"
                 ;;
             neo4j)
-                DATA_NONREL_DOCKERFILE="build/docker/data-nonrel/Dockerfile-data-neo4j"
+                DATA_NONREL_DOCKERFILE="docker/data-nonrel/Dockerfile-data-neo4j"
                 ;;
             *)
                 echo "Error: Unsupported DATA_NONREL_TYPE '$DATA_NONREL_TYPE'. Must be mongodb or neo4j."

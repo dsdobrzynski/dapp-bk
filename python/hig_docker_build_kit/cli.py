@@ -32,7 +32,7 @@ def build(rebuild_app: bool, rebuild_data: bool, import_data: bool):
     # Find project root
     project_root = find_project_root()
     if not project_root:
-        click.secho('Error: Could not find project root with build/.env file', fg='red')
+        click.secho('Error: Could not find project root with .env file', fg='red')
         sys.exit(1)
 
     click.echo(f'Project root: {project_root}')
@@ -167,7 +167,7 @@ def network_fix():
 
 
 def find_project_root() -> Optional[Path]:
-    """Find the project root directory containing build/.env"""
+    """Find the project root directory containing .env"""
     current = Path.cwd()
     max_levels = 5
 
@@ -186,18 +186,18 @@ def find_project_root() -> Optional[Path]:
 
 
 def load_environment(project_root: Path) -> Optional[Dict[str, str]]:
-    """Load environment variables from build/.env"""
+    """Load environment variables from .env"""
     env_file = project_root / 'build' / '.env'
 
     if not env_file.exists():
         click.secho(f'Error: Environment file not found: {env_file}', fg='red')
-        click.echo('Please create build/.env from build/.env.example')
+        click.echo('Please create .env from .env.example')
         return None
 
     try:
         env = dotenv_values(env_file)
         if not env.get('PROJECT_NAME'):
-            click.secho('Error: PROJECT_NAME must be set in build/.env', fg='red')
+            click.secho('Error: PROJECT_NAME must be set in .env', fg='red')
             return None
         return env
     except Exception as e:
@@ -383,10 +383,10 @@ def install_composer(container) -> bool:
 def get_default_dockerfile(app_type: str) -> str:
     """Get default Dockerfile path for app type"""
     dockerfiles = {
-        'php-apache': 'build/docker/app/Dockerfile-app-php',
-        'node': 'build/docker/app/Dockerfile-app-node',
-        'python': 'build/docker/app/Dockerfile-app-python',
-        'java': 'build/docker/app/Dockerfile-app-java',
+        'php-apache': 'docker/app/Dockerfile-app-php',
+        'node': 'docker/app/Dockerfile-app-node',
+        'python': 'docker/app/Dockerfile-app-python',
+        'java': 'docker/app/Dockerfile-app-java',
     }
     return dockerfiles.get(app_type, dockerfiles['php-apache'])
 

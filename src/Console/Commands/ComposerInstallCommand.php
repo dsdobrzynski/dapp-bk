@@ -33,7 +33,7 @@ class ComposerInstallCommand extends Command
         }
 
         // Read container name from output file
-        $containersFile = $projectRoot . '/build/out/containers-names.txt';
+        $containersFile = $projectRoot . '/out/containers-names.txt';
         if (!file_exists($containersFile)) {
             $io->error("containers-names.txt not found at $containersFile");
             $io->note('Run the build command first to create containers');
@@ -125,7 +125,7 @@ class ComposerInstallCommand extends Command
         $maxLevels = 5;
 
         for ($i = 0; $i < $maxLevels; $i++) {
-            if (file_exists($current . '/build/.env')) {
+            if (file_exists($current . '/.env')) {
                 return $current;
             }
             $parent = dirname($current);
