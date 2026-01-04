@@ -8,7 +8,7 @@ use Dsdobrzynski\DockerAppBuildKit\Console\Commands\ComposerInstallCommand;
 use Dsdobrzynski\DockerAppBuildKit\Console\Commands\NetworkFixCommand;
 
 /**
- * @method \Symfony\Component\Console\Command\Command add(\Symfony\Component\Console\Command\Command $command)
+ * @method \Symfony\Component\Console\Command\Command addCommand(\Symfony\Component\Console\Command\Command $command)
  */
 class Application extends BaseApplication
 {
@@ -18,8 +18,8 @@ class Application extends BaseApplication
     {
         parent::__construct('Docker App Build Kit', self::VERSION);
 
-        $this->add(new BuildCommand());
-        $this->add(new ComposerInstallCommand());
-        $this->add(new NetworkFixCommand());
+        $this->addCommand(new BuildCommand());
+        $this->addCommand(new ComposerInstallCommand());
+        $this->addCommand(new NetworkFixCommand());
     }
 }
