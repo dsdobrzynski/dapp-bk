@@ -291,11 +291,14 @@ class BuildCommand extends Command
             '-p', "$hostPort:$containerPort",
         ];
 
-        // Add volume mounts if specified
-        if (!empty($this->env['APP_HOST_VOLUME_PATH'])) {
-            $runArgs[] = '-v';
-            $runArgs[] = $this->env['APP_HOST_VOLUME_PATH'] . ':' . ($this->env['APP_CONTAINER_VOLUME_PATH'] ?? '/var/www/html');
-        }
+        // Mount project root by default, or use custom path if specified
+        $hostVolumePath = $this->env['APP_HOST_VOLUME_PATH'] ?? $this->projectRoot;
+        $containerVolumePath = $this->env['APP_CONTAINER_VOLUME_PATH'] ?? '/var/www/html';
+        
+        $runArgs[] = '-v';
+        $runArgs[] = "$hostVolumePath:$containerVolumePath";
+        
+        $io->text("Mounting volume: $hostVolumePath -> $containerVolumePath");
 
         $runArgs[] = $containerName;
 
