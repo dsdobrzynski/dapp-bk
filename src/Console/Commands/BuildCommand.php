@@ -292,9 +292,9 @@ class BuildCommand extends Command
         ];
 
         // Add volume mounts if specified
-        if (!empty($this->env['APP_VOLUME_HOST'])) {
+        if (!empty($this->env['APP_HOST_VOLUME_PATH'])) {
             $runArgs[] = '-v';
-            $runArgs[] = $this->env['APP_VOLUME_HOST'] . ':' . ($this->env['APP_VOLUME_CONTAINER'] ?? '/var/www/html');
+            $runArgs[] = $this->env['APP_HOST_VOLUME_PATH'] . ':' . ($this->env['APP_CONTAINER_VOLUME_PATH'] ?? '/var/www/html');
         }
 
         $runArgs[] = $containerName;
