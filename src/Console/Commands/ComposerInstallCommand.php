@@ -16,6 +16,7 @@ class ComposerInstallCommand extends Command
     protected function configure(): void
     {
         $this
+            ->setName('composer:install')
             ->setDescription(self::$defaultDescription)
             ->setHelp('This command installs PHP dependencies using Composer in the running app container');
     }

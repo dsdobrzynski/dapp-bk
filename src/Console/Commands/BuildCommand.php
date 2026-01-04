@@ -22,6 +22,7 @@ class BuildCommand extends Command
     protected function configure(): void
     {
         $this
+            ->setName('build')
             ->setDescription(self::$defaultDescription)
             ->addOption('rebuild-app', null, InputOption::VALUE_NONE, 'Rebuild the application container')
             ->addOption('rebuild-data', null, InputOption::VALUE_NONE, 'Rebuild the data container')
