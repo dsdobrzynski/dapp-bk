@@ -87,6 +87,11 @@ RUN echo "Setting web directory permissions..." && \
     chown -R www-data:www-data $WEBDIR && \
     echo "...finished setting web directory permissions."
 
+RUN echo "Configuring Apache DocumentRoot..." && \
+    sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf && \
+    sed -i 's|<Directory /var/www/>|<Directory /var/www/html/public>|g' /etc/apache2/apache2.conf && \
+    echo "...finished configuring Apache DocumentRoot."
+
 RUN echo "###### DOCKER BUILD COMPLETED #####"
 
 EXPOSE 80 ${APP_PORT_HOST} ${APP_PORT_CONTAINER}
