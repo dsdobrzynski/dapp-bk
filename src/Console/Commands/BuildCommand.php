@@ -115,8 +115,25 @@ class BuildCommand extends Command
         }
 
         try {
+            // Read and filter .env file to only include valid environment variable names
+            // (uppercase letters, numbers, underscores - no dots)
+            $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $filteredLines = [];
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                // Skip comments and empty lines
+                if (empty($line) || $line[0] === '#') {
+                    continue;
+                }
+                // Only include lines with valid env var names (no dots)
+                if (preg_match('/^[A-Z_][A-Z0-9_]*=/', $line)) {
+                    $filteredLines[] = $line;
+                }
+            }
+            
             $dotenv = new Dotenv();
-            $this->env = $dotenv->parse(file_get_contents($envFile));
+            $this->env = $dotenv->parse(implode("\n", $filteredLines));
 
             if (empty($this->env['PROJECT_NAME'])) {
                 $io->error('PROJECT_NAME must be set in .env');
