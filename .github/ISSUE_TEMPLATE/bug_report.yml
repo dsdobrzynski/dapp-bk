@@ -90,7 +90,7 @@ body:
         - MariaDB
         - MongoDB
         - Neo4j
-        - None
+        - No database
         - Multiple
     validations:
       required: false
