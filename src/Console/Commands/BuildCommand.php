@@ -340,11 +340,125 @@ class BuildCommand extends Command
         $containerName = $this->env['PROJECT_NAME'] . '-data-rel-container';
         $io->section("Relational Database: $containerName");
 
-        // Similar logic to app container
-        // Simplified for brevity - full implementation would mirror bash script
-        $io->text('Relational database container handling...');
+        $rebuildData = $input->getOption('rebuild-data');
+        $dataRelType = $this->env['DATA_REL_TYPE'];
+
+        // Check if container exists
+        $process = new Process(['docker', 'ps', '-a', '--filter', "name=$containerName", '--format', '{{.Names}}']);
+        $process->run();
+        $exists = trim($process->getOutput()) === $containerName;
+
+        if ($exists && !$rebuildData) {
+            // Check if running
+            $process = new Process(['docker', 'inspect', '-f', '{{.State.Status}}', $containerName]);
+            $process->run();
+            $status = trim($process->getOutput());
+
+            if ($status === 'running') {
+                $io->text("Container $containerName is already running");
+                return true;
+            }
+
+            $io->text("Starting container $containerName");
+            $process = new Process(['docker', 'start', $containerName]);
+            $process->run();
+            return $process->isSuccessful();
+        }
+
+        if ($exists && $rebuildData) {
+            $io->text("Removing existing container for rebuild");
+            $process = new Process(['docker', 'stop', $containerName]);
+            $process->run();
+            $process = new Process(['docker', 'rm', '-v', $containerName]);
+            $process->run();
+        }
+
+        // Build new container
+        return $this->buildDataContainer($io, $containerName, $dataRelType);
+    }
+
+    private function buildDataContainer(SymfonyStyle $io, string $containerName, string $dataType): bool
+    {
+        $dockerfile = $this->env['DATA_REL_DOCKERFILE'] ?? $this->getDefaultDataDockerfile($dataType);
+        $dockerfilePath = $this->findDockerfile($dockerfile);
+
+        if (!$dockerfilePath) {
+            $io->error("Dockerfile not found: $dockerfile");
+            return false;
+        }
+
+        $io->text("Building data container from: $dockerfilePath");
+
+        $buildContext = $this->projectRoot;
+        $dockerfileArg = $dockerfilePath;
+
+        // Build image
+        $imageName = $this->env['PROJECT_NAME'] . '-data-rel-image';
+        $process = new Process([
+            'docker', 'build',
+            '-f', $dockerfileArg,
+            '-t', $imageName,
+            $buildContext
+        ]);
+        $process->setTimeout(600);
+        $io->text("Building image: $imageName");
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $io->error("Failed to build image: " . $process->getErrorOutput());
+            return false;
+        }
+
+        // Run container
+        return $this->runDataContainer($io, $containerName, $imageName);
+    }
+
+    private function runDataContainer(SymfonyStyle $io, string $containerName, string $imageName): bool
+    {
+        $networkName = $this->env['PROJECT_NAME'] . '-network';
+        $hostPort = $this->env['DATA_REL_HOST_PORT'] ?? '5432';
+        $containerPort = $this->env['DATA_REL_CONTAINER_PORT'] ?? '5432';
         
+        // Database credentials
+        $dbName = $this->env['DATA_REL_NAME'] ?? 'appdb';
+        $dbUser = $this->env['DATA_REL_USERNAME'] ?? 'appuser';
+        $dbPassword = $this->env['DATA_REL_PASSWORD'] ?? 'apppass';
+
+        $runCommand = [
+            'docker', 'run', '-d',
+            '--name', $containerName,
+            '--network', $networkName,
+            '-p', "$hostPort:$containerPort",
+            '-e', "POSTGRES_DB=$dbName",
+            '-e', "POSTGRES_USER=$dbUser",
+            '-e', "POSTGRES_PASSWORD=$dbPassword",
+            $imageName
+        ];
+
+        $io->text("Starting container: $containerName on port $hostPort");
+        $process = new Process($runCommand);
+        $process->setTimeout(60);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $io->error("Failed to start container: " . $process->getErrorOutput());
+            return false;
+        }
+
+        $io->success("Data container started successfully");
         return true;
+    }
+
+    private function getDefaultDataDockerfile(string $dataType): string
+    {
+        return match($dataType) {
+            'mysql' => 'docker/data-rel/Dockerfile-data-mysql',
+            'mariadb' => 'docker/data-rel/Dockerfile-data-mariadb',
+            'postgres' => 'docker/data-rel/Dockerfile-data-postgres',
+            'mongodb' => 'docker/data-nonrel/Dockerfile-data-mongodb',
+            'neo4j' => 'docker/data-nonrel/Dockerfile-data-neo4j',
+            default => "docker/data-rel/Dockerfile-data-$dataType",
+        };
     }
 
     private function handleNonRelationalDatabase(SymfonyStyle $io, InputInterface $input): bool
