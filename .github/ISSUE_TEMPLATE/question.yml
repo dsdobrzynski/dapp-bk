@@ -1,0 +1,111 @@
+name: ❓ Question/Support
+description: Ask a question or get help with using dapp-bk
+title: "[Question]: "
+labels: ["question", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about using Docker App Build Kit? We're here to help!
+        
+        **Note:** For general discussions, consider using [GitHub Discussions](https://github.com/dsdobrzynski/dapp-bk/discussions) instead.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: How do I configure multiple databases? What's the best way to...?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What is your question about?
+      options:
+        - Installation/Setup
+        - Configuration
+        - Docker/Containers
+        - Database Setup
+        - Commands/CLI
+        - Build Issues
+        - Networking
+        - Best Practices
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: implementation
+    attributes:
+      label: Implementation
+      description: Which implementation are you using?
+      options:
+        - PHP (Composer)
+        - Python (pip)
+        - Node.js (npm)
+        - Multiple
+        - Not yet chosen
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context/Background
+      description: Provide context about what you're trying to accomplish
+      placeholder: |
+        I'm trying to set up a development environment for...
+        My project uses...
+        I need to...
+    validations:
+      required: false
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What I've Tried
+      description: What have you already tried? What documentation have you read?
+      placeholder: |
+        - Checked the README
+        - Tried configuring .env with...
+        - Searched for similar issues
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS are you using?
+      options:
+        - Windows 10
+        - Windows 11
+        - Ubuntu/Debian
+        - macOS
+        - Other Linux
+        - WSL2
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other details that might be helpful
+      placeholder: Configuration snippets, logs, screenshots, etc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have checked the documentation
+          required: true
+        - label: I have searched for similar questions in existing issues
+          required: true
