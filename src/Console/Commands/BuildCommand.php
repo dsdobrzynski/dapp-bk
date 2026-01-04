@@ -233,23 +233,26 @@ class BuildCommand extends Command
     {
         $appType = $this->env['APP_TYPE'] ?? 'php-apache';
         $dockerfile = $this->env['APP_DOCKERFILE'] ?? $this->getDefaultDockerfile($appType);
-        $dockerfilePath = $this->projectRoot . '/' . $dockerfile;
+        $dockerfilePath = $this->findDockerfile($dockerfile);
 
-        if (!file_exists($dockerfilePath)) {
-            $io->error("Dockerfile not found: $dockerfilePath");
+        if (!$dockerfilePath) {
+            $io->error("Dockerfile not found: $dockerfile");
+            $io->note("Searched in project root and vendor/dsdobrzynski/dapp-bk/");
             return false;
         }
 
-        $io->text("Building app container from: $dockerfile");
+        $io->text("Building app container from: $dockerfilePath");
         
-        // Determine build context and dockerfile relative to it
+        // Determine build context and dockerfile path
         $buildContext = $this->projectRoot;
-        $dockerfileRelative = $dockerfile;
+        
+        // If using vendor dockerfile, adjust the path
+        $dockerfileArg = $dockerfilePath;
 
         $buildArgs = [
             'docker', 'build',
             '-t', $containerName,
-            '-f', $dockerfileRelative,
+            '-f', $dockerfileArg,
         ];
 
         // Add build args if specified
@@ -361,6 +364,23 @@ class BuildCommand extends Command
         ];
 
         return $dockerfiles[$appType] ?? $dockerfiles['php-apache'];
+    }
+
+    private function findDockerfile(string $dockerfile): ?string
+    {
+        // Check in project root first
+        $projectPath = $this->projectRoot . '/' . $dockerfile;
+        if (file_exists($projectPath)) {
+            return $projectPath;
+        }
+
+        // Check in vendor directory
+        $vendorPath = $this->projectRoot . '/vendor/dsdobrzynski/dapp-bk/' . $dockerfile;
+        if (file_exists($vendorPath)) {
+            return $vendorPath;
+        }
+
+        return null;
     }
 
     private function getContainerPort(string $appType): string
