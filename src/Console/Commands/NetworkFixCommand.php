@@ -16,6 +16,7 @@ class NetworkFixCommand extends Command
     protected function configure(): void
     {
         $this
+            ->setName('network:fix')
             ->setDescription(self::$defaultDescription)
             ->setHelp('This command fixes common Docker network connectivity issues');
     }
