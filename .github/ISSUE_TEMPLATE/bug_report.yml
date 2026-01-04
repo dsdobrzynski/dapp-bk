@@ -1,0 +1,177 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us resolve the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: implementation
+    attributes:
+      label: Implementation
+      description: Which implementation are you using?
+      options:
+        - PHP (Composer)
+        - Python (pip)
+        - Node.js (npm)
+        - Multiple implementations
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: DAPP-BK Version
+      description: Which version of dapp-bk are you using?
+      placeholder: "e.g., 1.2.3 or latest"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS are you running on?
+      options:
+        - Windows 10
+        - Windows 11
+        - Ubuntu/Debian
+        - macOS
+        - Other Linux
+        - WSL2
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: docker-version
+    attributes:
+      label: Docker Version
+      description: Output of `docker --version`
+      placeholder: "e.g., Docker version 24.0.7"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: app-type
+    attributes:
+      label: Application Type
+      description: What type of application container?
+      options:
+        - php-apache
+        - node
+        - python
+        - java
+        - Not applicable
+    validations:
+      required: false
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database Type
+      description: What database are you using?
+      options:
+        - PostgreSQL
+        - MySQL
+        - MariaDB
+        - MongoDB
+        - Neo4j
+        - None
+        - Multiple
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Provide detailed steps to reproduce the issue
+      placeholder: |
+        1. Run command: dapp-bk build --rebuild-app
+        2. Observe error output
+        3. Check container logs with: docker logs container-name
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Container should build and start successfully...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Container failed to build with error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Environment Configuration
+      description: Relevant sections from your `.env` file (remove sensitive data)
+      placeholder: |
+        PROJECT_NAME=my-project
+        APP_TYPE=php-apache
+        APP_HOST_PORT=8080
+        DATA_REL_TYPE=postgres
+        # ... other relevant settings
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs/Error Output
+      description: Paste relevant error logs or command output
+      placeholder: Paste logs here...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or information about the problem
+      placeholder: Any other relevant information...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have provided all required information above
+          required: true
+        - label: I am using the latest version (or have specified my version)
+          required: false
