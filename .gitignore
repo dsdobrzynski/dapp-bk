@@ -96,3 +96,6 @@ $RECYCLE.BIN/
 *.seed
 *.pid.lock
 
+dapp-bk.code-workspace
+*.code-workspace
+*.code-workspace
