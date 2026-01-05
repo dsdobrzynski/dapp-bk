@@ -27,6 +27,7 @@ class BuildCommand extends Command
             ->addOption('rebuild-app', null, InputOption::VALUE_NONE, 'Rebuild the application container')
             ->addOption('rebuild-data', null, InputOption::VALUE_NONE, 'Rebuild the data container')
             ->addOption('import-data', null, InputOption::VALUE_NONE, 'Import data into the database container')
+            ->addOption('no-cache', null, InputOption::VALUE_NONE, 'Build containers without using cache')
             ->setHelp('This command builds and manages Docker containers based on your .env configuration');
     }
 
@@ -154,6 +155,7 @@ class BuildCommand extends Command
             ['REBUILD_APP_CONTAINER', $input->getOption('rebuild-app') ? 'Yes' : 'No'],
             ['REBUILD_DATA_CONTAINER', $input->getOption('rebuild-data') ? 'Yes' : 'No'],
             ['IMPORT_DATA', $input->getOption('import-data') ? 'Yes' : 'No'],
+            ['NO_CACHE', $input->getOption('no-cache') ? 'Yes' : 'No'],
             ['PROJECT_NAME', $this->env['PROJECT_NAME'] ?? ''],
             ['APP_TYPE', $this->env['APP_TYPE'] ?? 'php-apache'],
             ['DATA_REL_TYPE', $this->env['DATA_REL_TYPE'] ?? 'postgres'],
@@ -226,10 +228,10 @@ class BuildCommand extends Command
         }
 
         // Build new container
-        return $this->buildAppContainer($io, $containerName);
+        return $this->buildAppContainer($io, $containerName, $input);
     }
 
-    private function buildAppContainer(SymfonyStyle $io, string $containerName): bool
+    private function buildAppContainer(SymfonyStyle $io, string $containerName, InputInterface $input): bool
     {
         $appType = $this->env['APP_TYPE'] ?? 'php-apache';
         $dockerfile = $this->env['APP_DOCKERFILE'] ?? $this->getDefaultDockerfile($appType);
@@ -254,6 +256,12 @@ class BuildCommand extends Command
             '-t', $containerName,
             '-f', $dockerfileArg,
         ];
+
+        // Add no-cache flag if specified
+        if ($input->getOption('no-cache')) {
+            $buildArgs[] = '--no-cache';
+            $io->text('Building without cache');
+        }
 
         // Add build args if specified
         if (!empty($this->env['APP_BASE_IMAGE'])) {
@@ -374,10 +382,10 @@ class BuildCommand extends Command
         }
 
         // Build new container
-        return $this->buildDataContainer($io, $containerName, $dataRelType);
+        return $this->buildDataContainer($io, $containerName, $dataRelType, $input);
     }
 
-    private function buildDataContainer(SymfonyStyle $io, string $containerName, string $dataType): bool
+    private function buildDataContainer(SymfonyStyle $io, string $containerName, string $dataType, InputInterface $input): bool
     {
         $dockerfile = $this->env['DATA_REL_DOCKERFILE'] ?? $this->getDefaultDataDockerfile($dataType);
         $dockerfilePath = $this->findDockerfile($dockerfile);
@@ -394,12 +402,21 @@ class BuildCommand extends Command
 
         // Build image
         $imageName = $this->env['PROJECT_NAME'] . '-data-rel-image';
-        $process = new Process([
+        $buildCommand = [
             'docker', 'build',
             '-f', $dockerfileArg,
             '-t', $imageName,
-            $buildContext
-        ]);
+        ];
+
+        // Add no-cache flag if specified
+        if ($input->getOption('no-cache')) {
+            $buildCommand[] = '--no-cache';
+            $io->text('Building without cache');
+        }
+
+        $buildCommand[] = $buildContext;
+
+        $process = new Process($buildCommand);
         $process->setTimeout(600);
         $io->text("Building image: $imageName");
         $process->run();
