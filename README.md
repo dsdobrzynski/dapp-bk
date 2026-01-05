@@ -442,7 +442,7 @@ composer cs-fix
 
 | App / Database Type | PostgreSQL | MySQL | MariaDB | MongoDB | Neo4j |
 |--------------------|-----------|-------|---------|---------|-------|
-| php-apache | In Progress | To Do | To Do | To Do | To Do |
+| php-apache | Complete | To Do | To Do | To Do | To Do |
 | node | To Do | To Do | To Do | To Do | To Do |
 | python | To Do | To Do | To Do | To Do | To Do |
 | java | To Do | To Do | To Do | To Do | To Do |
