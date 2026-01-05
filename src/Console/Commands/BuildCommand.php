@@ -533,14 +533,43 @@ class BuildCommand extends Command
     {
         $io->section('Container Summary');
         
+        $rows = [];
+        
+        // Add app container
         $appContainer = $this->env['PROJECT_NAME'] . '-app-container';
         $hostPort = $this->env['APP_HOST_PORT'] ?? '8080';
+        $rows[] = [$appContainer, "http://localhost:$hostPort", $this->getContainerStatus($appContainer)];
+        
+        // Add relational database container if configured
+        if (!empty($this->env['DATA_REL_TYPE'])) {
+            $dataRelContainer = $this->env['PROJECT_NAME'] . '-data-rel-container';
+            $dataRelPort = $this->env['DATA_REL_HOST_PORT'] ?? '5432';
+            $rows[] = [$dataRelContainer, "localhost:$dataRelPort", $this->getContainerStatus($dataRelContainer)];
+        }
+        
+        // Add non-relational database container if configured
+        if (!empty($this->env['DATA_NONREL_TYPE'])) {
+            $dataNonRelContainer = $this->env['PROJECT_NAME'] . '-data-nonrel-container';
+            $dataNonRelPort = $this->env['DATA_NONREL_HOST_PORT'] ?? '27017';
+            $rows[] = [$dataNonRelContainer, "localhost:$dataNonRelPort", $this->getContainerStatus($dataNonRelContainer)];
+        }
 
         $io->table(
             ['Container', 'URL', 'Status'],
-            [
-                [$appContainer, "http://localhost:$hostPort", 'Running'],
-            ]
+            $rows
         );
+    }
+
+    private function getContainerStatus(string $containerName): string
+    {
+        $process = new Process(['docker', 'inspect', '-f', '{{.State.Status}}', $containerName]);
+        $process->run();
+        
+        if (!$process->isSuccessful()) {
+            return 'Not Found';
+        }
+        
+        $status = trim($process->getOutput());
+        return ucfirst($status);
     }
 }
