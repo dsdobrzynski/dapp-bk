@@ -417,6 +417,36 @@ composer test
 composer cs-fix
 ```
 
+## Testing Status
+
+### Application Types
+
+| Application Type | Testing Status | Assignee |
+|-----------------|----------------|----------|
+| php-apache | Complete | @dsdobrzynski |
+| node | To Do | |
+| python | To Do | |
+| java | To Do | |
+
+### Database Types
+
+| Database Type | Testing Status | Assignee |
+|--------------|----------------|----------|
+| postgres | To Do | |
+| mysql | To Do | |
+| mariadb | To Do | |
+| mongodb | To Do | |
+| neo4j | To Do | |
+
+### App and Data Combinations
+
+| App / Database Type | PostgreSQL | MySQL | MariaDB | MongoDB | Neo4j |
+|--------------------|-----------|-------|---------|---------|-------|
+| php-apache | In Progress | To Do | To Do | To Do | To Do |
+| node | To Do | To Do | To Do | To Do | To Do |
+| python | To Do | To Do | To Do | To Do | To Do |
+| java | To Do | To Do | To Do | To Do | To Do |
+
 ## License
 
 MIT License
