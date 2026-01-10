@@ -431,7 +431,7 @@ composer cs-fix
 
 | Application Type | Testing Status | Assignee |
 |-----------------|----------------|----------|
-| php-apache | Complete | @dsdobrzynski |
+| php-apache | In-Progress | @dsdobrzynski |
 | node | To Do | |
 | python | To Do | |
 | java | To Do | |
@@ -440,8 +440,8 @@ composer cs-fix
 
 | Database Type | Testing Status | Assignee |
 |--------------|----------------|----------|
-| postgres | To Do | |
-| mysql | To Do | |
+| postgres | In-Progress | |
+| mysql | In-Progress | |
 | mariadb | To Do | |
 | mongodb | To Do | |
 | neo4j | To Do | |
@@ -450,7 +450,7 @@ composer cs-fix
 
 | App / Database Type | PostgreSQL | MySQL | MariaDB | MongoDB | Neo4j |
 |--------------------|-----------|-------|---------|---------|-------|
-| php-apache | Complete | To Do | To Do | To Do | To Do |
+| php-apache | Complete | Complete | Complete | To Do | To Do |
 | node | To Do | To Do | To Do | To Do | To Do |
 | python | To Do | To Do | To Do | To Do | To Do |
 | java | To Do | To Do | To Do | To Do | To Do |
