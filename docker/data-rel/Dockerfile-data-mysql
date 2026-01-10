@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=mysql:8.0
+ARG BASE_IMAGE=mysql:9.5
 FROM ${BASE_IMAGE}
 
 # Set data environment variables from build/run args
