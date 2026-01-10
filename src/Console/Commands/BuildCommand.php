@@ -60,6 +60,11 @@ class BuildCommand extends Command
             return Command::SUCCESS;
         }
 
+        // Check Docker connectivity
+        if (!$this->checkDockerConnectivity($io)) {
+            return Command::FAILURE;
+        }
+
         // Create Docker network
         if (!$this->createDockerNetwork($io)) {
             return Command::FAILURE;
@@ -161,6 +166,32 @@ class BuildCommand extends Command
             ['DATA_REL_TYPE', $this->env['DATA_REL_TYPE'] ?? 'postgres'],
             ['DATA_NONREL_TYPE', $this->env['DATA_NONREL_TYPE'] ?? '(none)'],
         ]);
+    }
+
+    private function checkDockerConnectivity(SymfonyStyle $io): bool
+    {
+        $io->section('Checking Docker Connectivity');
+
+        $process = new Process(['docker', 'info']);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $io->error('Unable to connect to Docker');
+            $io->writeln('');
+            $io->writeln('<fg=yellow>Docker does not appear to be running. Please:</>>');
+            $io->writeln('  1. Start Docker Desktop (or Docker daemon)');
+            $io->writeln('  2. Wait for Docker to fully start');
+            $io->writeln('  3. Try running this command again');
+            $io->writeln('');
+            $io->writeln('<fg=cyan>Need help? Check:</>>');
+            $io->writeln('  • Windows: Ensure Docker Desktop is running in the system tray');
+            $io->writeln('  • Linux: Run "sudo systemctl start docker"');
+            $io->writeln('  • Mac: Ensure Docker Desktop is running in the menu bar');
+            return false;
+        }
+
+        $io->success('Docker is running');
+        return true;
     }
 
     private function createDockerNetwork(SymfonyStyle $io): bool

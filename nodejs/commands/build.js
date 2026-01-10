@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+fimport fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
@@ -129,10 +129,22 @@ export async function build(options) {
   // Create Docker client
   const docker = new Dockerode();
 
+  // Check Docker connectivity
   try {
     await docker.ping();
+    console.log(chalk.green('✓ Docker is running'));
   } catch (error) {
-    console.error(chalk.red(`Error: Could not connect to Docker: ${error.message}`));
+    console.error(chalk.red('✗ Unable to connect to Docker'));
+    console.log();
+    console.log(chalk.yellow('Docker does not appear to be running. Please:'));
+    console.log('  1. Start Docker Desktop (or Docker daemon)');
+    console.log('  2. Wait for Docker to fully start');
+    console.log('  3. Try running this command again');
+    console.log();
+    console.log(chalk.cyan('Need help? Check:'));
+    console.log('  • Windows: Ensure Docker Desktop is running in the system tray');
+    console.log('  • Linux: Run "sudo systemctl start docker"');
+    console.log('  • Mac: Ensure Docker Desktop is running in the menu bar');
     process.exit(1);
   }
 

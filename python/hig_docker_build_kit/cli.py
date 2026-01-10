@@ -50,11 +50,23 @@ def build(rebuild_app: bool, rebuild_data: bool, import_data: bool):
         click.secho('Aborted by user', fg='yellow')
         return
 
-    # Create Docker client
+    # Create Docker client and check connectivity
     try:
         client = docker.from_env()
+        client.ping()
+        click.secho('✓ Docker is running', fg='green')
     except Exception as e:
-        click.secho(f'Error: Could not connect to Docker: {e}', fg='red')
+        click.secho('✗ Unable to connect to Docker', fg='red')
+        click.echo()
+        click.secho('Docker does not appear to be running. Please:', fg='yellow')
+        click.echo('  1. Start Docker Desktop (or Docker daemon)')
+        click.echo('  2. Wait for Docker to fully start')
+        click.echo('  3. Try running this command again')
+        click.echo()
+        click.secho('Need help? Check:', fg='cyan')
+        click.echo('  • Windows: Ensure Docker Desktop is running in the system tray')
+        click.echo('  • Linux: Run "sudo systemctl start docker"')
+        click.echo('  • Mac: Ensure Docker Desktop is running in the menu bar')
         sys.exit(1)
 
     # Create Docker network
