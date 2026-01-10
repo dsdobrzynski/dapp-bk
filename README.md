@@ -419,6 +419,14 @@ composer cs-fix
 
 ## Testing Status
 
+### Install Method
+
+| Install Method | Testing Status | Assignee |
+|---------------|----------------|----------|
+| PHP (Composer) | Complete | @dsdobrzynski |
+| Python (pip) | To Do | |
+| Node.js (npm) | To Do | |
+
 ### Application Types
 
 | Application Type | Testing Status | Assignee |
