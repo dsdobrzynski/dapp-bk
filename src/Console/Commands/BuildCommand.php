@@ -466,6 +466,7 @@ class BuildCommand extends Command
         $networkName = $this->env['PROJECT_NAME'] . '-network';
         $hostPort = $this->env['DATA_REL_HOST_PORT'] ?? '5432';
         $containerPort = $this->env['DATA_REL_CONTAINER_PORT'] ?? '5432';
+        $dataType = $this->env['DATA_REL_TYPE'] ?? 'postgres';
         
         // Database credentials
         $dbName = $this->env['DATA_REL_NAME'] ?? 'appdb';
@@ -477,11 +478,33 @@ class BuildCommand extends Command
             '--name', $containerName,
             '--network', $networkName,
             '-p', "$hostPort:$containerPort",
-            '-e', "POSTGRES_DB=$dbName",
-            '-e', "POSTGRES_USER=$dbUser",
-            '-e', "POSTGRES_PASSWORD=$dbPassword",
-            $imageName
         ];
+
+        // Add database-specific environment variables
+        switch ($dataType) {
+            case 'mysql':
+            case 'mariadb':
+                $runCommand[] = '-e';
+                $runCommand[] = "MYSQL_DATABASE=$dbName";
+                $runCommand[] = '-e';
+                $runCommand[] = "MYSQL_USER=$dbUser";
+                $runCommand[] = '-e';
+                $runCommand[] = "MYSQL_PASSWORD=$dbPassword";
+                $runCommand[] = '-e';
+                $runCommand[] = "MYSQL_ROOT_PASSWORD=$dbPassword";
+                break;
+            case 'postgres':
+            default:
+                $runCommand[] = '-e';
+                $runCommand[] = "POSTGRES_DB=$dbName";
+                $runCommand[] = '-e';
+                $runCommand[] = "POSTGRES_USER=$dbUser";
+                $runCommand[] = '-e';
+                $runCommand[] = "POSTGRES_PASSWORD=$dbPassword";
+                break;
+        }
+
+        $runCommand[] = $imageName;
 
         $io->text("Starting container: $containerName on port $hostPort");
         $process = new Process($runCommand);
