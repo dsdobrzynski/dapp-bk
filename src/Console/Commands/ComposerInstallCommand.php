@@ -6,12 +6,15 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\Process\Process;
 
 class ComposerInstallCommand extends Command
 {
     protected static $defaultName = 'composer:install';
     protected static $defaultDescription = 'Install Composer dependencies in the app container';
+
+    private $env = [];
 
     protected function configure(): void
     {
@@ -29,24 +32,17 @@ class ComposerInstallCommand extends Command
         // Find project root
         $projectRoot = $this->findProjectRoot();
         if (!$projectRoot) {
-            $io->error('Could not find project root');
+            $io->error('Could not find project root with .env file');
             return Command::FAILURE;
         }
 
-        // Read container name from output file
-        $containersFile = $projectRoot . '/out/containers-names.txt';
-        if (!file_exists($containersFile)) {
-            $io->error("containers-names.txt not found at $containersFile");
-            $io->note('Run the build command first to create containers');
+        // Load environment to get project name
+        if (!$this->loadEnvironment($io, $projectRoot)) {
             return Command::FAILURE;
         }
 
-        $appContainerName = trim(file($containersFile)[0] ?? '');
-        if (empty($appContainerName)) {
-            $io->error('Could not read app container name from containers-names.txt');
-            return Command::FAILURE;
-        }
-
+        // Build container name dynamically from PROJECT_NAME
+        $appContainerName = $this->env['PROJECT_NAME'] . '-app-container';
         $io->text("Container: $appContainerName");
 
         // Check if container is running
@@ -55,6 +51,7 @@ class ComposerInstallCommand extends Command
 
         if (!$process->isSuccessful()) {
             $io->error("Container '$appContainerName' not found");
+            $io->note('Run the build command first to create containers');
             return Command::FAILURE;
         }
 
@@ -66,20 +63,20 @@ class ComposerInstallCommand extends Command
 
         $io->success('Container is running');
 
-        // Determine project root inside container
-        $projectRoot = '/var/www/html';
-        $io->text("Project root: $projectRoot");
+        // Determine project root inside container from .env or default
+        $containerVolumePath = $this->env['APP_CONTAINER_VOLUME_PATH'] ?? '/var/www/html';
+        $io->text("Project root in container: $containerVolumePath");
 
         // Check if composer.json exists
         $io->text('Checking for composer.json...');
         $process = new Process([
             'docker', 'exec', $appContainerName,
-            'test', '-f', "$projectRoot/composer.json"
+            'test', '-f', "$containerVolumePath/composer.json"
         ]);
         $process->run();
 
         if (!$process->isSuccessful()) {
-            $io->warning("No composer.json found in $projectRoot");
+            $io->warning("No composer.json found in $containerVolumePath");
             $io->note('Skipping Composer install');
             return Command::SUCCESS;
         }
@@ -103,7 +100,7 @@ class ComposerInstallCommand extends Command
         // Run composer install
         $io->text('Running composer install...');
         $process = new Process([
-            'docker', 'exec', '-w', $projectRoot, $appContainerName,
+            'docker', 'exec', '-w', $containerVolumePath, $appContainerName,
             'composer', 'install', '--no-interaction', '--optimize-autoloader'
         ]);
         $process->setTimeout(600); // 10 minutes
@@ -118,6 +115,47 @@ class ComposerInstallCommand extends Command
 
         $io->success('Composer install completed successfully!');
         return Command::SUCCESS;
+    }
+
+    private function loadEnvironment(SymfonyStyle $io, string $projectRoot): bool
+    {
+        $envFile = $projectRoot . '/.env';
+        
+        if (!file_exists($envFile)) {
+            $io->error("Environment file not found: $envFile");
+            return false;
+        }
+
+        try {
+            // Read and filter .env file to only include valid environment variable names
+            $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $filteredLines = [];
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                // Skip comments and empty lines
+                if (empty($line) || $line[0] === '#') {
+                    continue;
+                }
+                // Only include lines with valid env var names (no dots)
+                if (preg_match('/^[A-Z_][A-Z0-9_]*=/', $line)) {
+                    $filteredLines[] = $line;
+                }
+            }
+            
+            $dotenv = new Dotenv();
+            $this->env = $dotenv->parse(implode("\n", $filteredLines));
+
+            if (empty($this->env['PROJECT_NAME'])) {
+                $io->error('PROJECT_NAME must be set in .env');
+                return false;
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            $io->error('Failed to load environment: ' . $e->getMessage());
+            return false;
+        }
     }
 
     private function findProjectRoot(): ?string
