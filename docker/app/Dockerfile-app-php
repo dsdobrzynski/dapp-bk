@@ -1,44 +1,68 @@
 ARG BASE_IMAGE=php:8.4.16-apache-bookworm
 FROM ${BASE_IMAGE}
 
+# Database type arguments - passed from .env via build command
+ARG DATA_REL_TYPE=""
+ARG DATA_NONREL_TYPE=""
+
 ENV WEBDIR="/var/www/html"
 ENV APP_PORT_HOST=${APP_PORT_HOST}
 ENV APP_PORT_CONTAINER=${APP_PORT_CONTAINER}
 
 RUN echo "###### DOCKER BUILD STARTED #####"
 
-RUN echo "Installing necessary packages..." && \
+# Base packages (always installed)
+RUN echo "Installing base packages..." && \
     apt-get update && \
     apt-get install -y \
         build-essential \
         ca-certificates \
         libicu-dev \
         libpng-dev \
-        libpq-dev \
         libssl3 \
         libxml2-dev \
         libzip-dev \
         linux-libc-dev \
-        memcached \
         nano \
         openssl \
-        postgresql \
-        postgresql-contrib \
-        redis \
         ssh \
         sudo \
         unzip \
         uuid \
         vim \
         zip && \
-    echo "...finished installing necessary packages." && \
-    echo "Updating CA certificates..." && \
-    update-ca-certificates && \
-    echo "...finished updating CA certificates." && \
-    echo "Cleaning up to reduce image size..." && \
+    echo "...finished installing base packages."
+
+# PostgreSQL libraries (if needed)
+RUN if [ "$DATA_REL_TYPE" = "postgres" ]; then \
+        echo "Installing PostgreSQL client libraries..." && \
+        apt-get install -y libpq-dev postgresql-client && \
+        echo "...finished installing PostgreSQL libraries."; \
+    fi
+
+# MySQL/MariaDB libraries (if needed)
+RUN if [ "$DATA_REL_TYPE" = "mysql" ] || [ "$DATA_REL_TYPE" = "mariadb" ]; then \
+        echo "Installing MySQL client libraries..." && \
+        apt-get install -y default-mysql-client default-libmysqlclient-dev && \
+        echo "...finished installing MySQL libraries."; \
+    fi
+
+# MongoDB libraries (if needed)
+RUN if [ "$DATA_NONREL_TYPE" = "mongodb" ]; then \
+        echo "Installing MongoDB dependencies..." && \
+        apt-get install -y libcurl4-openssl-dev pkg-config && \
+        echo "...finished installing MongoDB dependencies."; \
+    fi
+
+# Cleanup apt cache
+RUN echo "Cleaning up to reduce image size..." && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     echo "...finished cleaning up."
+
+RUN echo "Updating CA certificates..." && \
+    update-ca-certificates && \
+    echo "...finished updating CA certificates."
 
 RUN echo "Installing Composer..." && \
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
@@ -54,23 +78,50 @@ RUN echo "Enabling apache modules..." && \
         ssl && \
     echo "...finished enabling apache modules"
 
-RUN echo "Installing, configuring, and enabling PHP extensions..." && \
+# Base PHP extensions (always installed)
+RUN echo "Installing base PHP extensions..." && \
     docker-php-ext-install \
         bcmath \
         gd \
-        mysqli \
         opcache \
         pcntl \
         pdo \
-        pdo_mysql \
-        pdo_pgsql \
-        pgsql \
         soap \
         sockets \
         zip && \
     docker-php-ext-configure intl && \
     docker-php-ext-install intl && \
-    echo "...finished installing PHP extensions."
+    echo "...finished installing base PHP extensions."
+
+# PostgreSQL PHP extensions (if needed)
+RUN if [ "$DATA_REL_TYPE" = "postgres" ]; then \
+        echo "Installing PostgreSQL PHP extensions..." && \
+        docker-php-ext-install pdo_pgsql pgsql && \
+        echo "...finished installing PostgreSQL PHP extensions."; \
+    fi
+
+# MySQL/MariaDB PHP extensions (if needed)  
+RUN if [ "$DATA_REL_TYPE" = "mysql" ] || [ "$DATA_REL_TYPE" = "mariadb" ]; then \
+        echo "Installing MySQL PHP extensions..." && \
+        docker-php-ext-install pdo_mysql mysqli && \
+        echo "...finished installing MySQL PHP extensions."; \
+    fi
+
+# MongoDB PHP extension (if needed)
+RUN if [ "$DATA_NONREL_TYPE" = "mongodb" ]; then \
+        echo "Installing MongoDB PHP extension..." && \
+        pecl install mongodb && \
+        docker-php-ext-enable mongodb && \
+        echo "...finished installing MongoDB PHP extension."; \
+    fi
+
+# Redis PHP extension (useful for caching, install if any database is configured)
+RUN if [ -n "$DATA_REL_TYPE" ] || [ -n "$DATA_NONREL_TYPE" ]; then \
+        echo "Installing Redis PHP extension..." && \
+        pecl install redis && \
+        docker-php-ext-enable redis && \
+        echo "...finished installing Redis PHP extension."; \
+    fi
 
 ENV TZ=America/New_York
 RUN echo "Setting timezone to $TZ..." && \
@@ -78,9 +129,9 @@ RUN echo "Setting timezone to $TZ..." && \
     dpkg-reconfigure -f noninteractive tzdata && \
     echo "...finished setting timezone."
 
-RUN echo "Creating rtqi web directory..." && \
+RUN echo "Creating web directory..." && \
     mkdir -p $WEBDIR && \
-    echo "...finished creating rtqi web directory."
+    echo "...finished creating web directory."
 
 RUN echo "Setting web directory permissions..." && \
     chmod 755 -R $WEBDIR && \

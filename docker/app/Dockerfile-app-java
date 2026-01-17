@@ -1,6 +1,10 @@
 ARG BASE_IMAGE=eclipse-temurin:21-jdk-jammy
 FROM ${BASE_IMAGE}
 
+# Database type arguments - passed from .env via build command
+ARG DATA_REL_TYPE=""
+ARG DATA_NONREL_TYPE=""
+
 ENV WORKDIR="/app"
 ENV APP_PORT_HOST=${APP_PORT_HOST}
 ENV APP_PORT_CONTAINER=${APP_PORT_CONTAINER}
@@ -8,7 +12,8 @@ ENV JAVA_OPTS="-Xms512m -Xmx2048m"
 
 RUN echo "###### DOCKER BUILD STARTED #####"
 
-RUN echo "Installing necessary packages..." && \
+# Base packages
+RUN echo "Installing base packages..." && \
     apt-get update && \
     apt-get install -y \
         ca-certificates \
@@ -16,16 +21,33 @@ RUN echo "Installing necessary packages..." && \
         git \
         openssl \
         vim && \
-    echo "...finished installing necessary packages." && \
-    echo "Updating CA certificates..." && \
-    update-ca-certificates && \
-    echo "...finished updating CA certificates." && \
-    echo "Cleaning up to reduce image size..." && \
+    echo "...finished installing base packages."
+
+# PostgreSQL client (if needed)
+RUN if [ "$DATA_REL_TYPE" = "postgres" ]; then \
+        echo "Installing PostgreSQL client..." && \
+        apt-get install -y postgresql-client && \
+        echo "...finished installing PostgreSQL client."; \
+    fi
+
+# MySQL client (if needed)
+RUN if [ "$DATA_REL_TYPE" = "mysql" ] || [ "$DATA_REL_TYPE" = "mariadb" ]; then \
+        echo "Installing MySQL client..." && \
+        apt-get install -y mysql-client && \
+        echo "...finished installing MySQL client."; \
+    fi
+
+# Cleanup
+RUN echo "Cleaning up to reduce image size..." && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     echo "...finished cleaning up."
 
-# Install Maven (optional, can use Gradle instead)
+RUN echo "Updating CA certificates..." && \
+    update-ca-certificates && \
+    echo "...finished updating CA certificates."
+
+# Install Maven
 RUN echo "Installing Maven..." && \
     curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar xz -C /opt && \
     ln -s /opt/apache-maven-3.9.6 /opt/maven && \

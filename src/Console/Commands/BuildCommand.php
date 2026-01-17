@@ -300,6 +300,19 @@ class BuildCommand extends Command
             $buildArgs[] = 'BASE_IMAGE=' . $this->env['APP_BASE_IMAGE'];
         }
 
+        // Pass database types for conditional extension installation
+        if (!empty($this->env['DATA_REL_TYPE'])) {
+            $buildArgs[] = '--build-arg';
+            $buildArgs[] = 'DATA_REL_TYPE=' . $this->env['DATA_REL_TYPE'];
+            $io->text('Database type: ' . $this->env['DATA_REL_TYPE']);
+        }
+
+        if (!empty($this->env['DATA_NONREL_TYPE'])) {
+            $buildArgs[] = '--build-arg';
+            $buildArgs[] = 'DATA_NONREL_TYPE=' . $this->env['DATA_NONREL_TYPE'];
+            $io->text('Non-relational database type: ' . $this->env['DATA_NONREL_TYPE']);
+        }
+
         $buildArgs[] = $buildContext;
 
         $process = new Process($buildArgs);

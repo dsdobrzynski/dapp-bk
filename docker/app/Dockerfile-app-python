@@ -1,6 +1,10 @@
 ARG BASE_IMAGE=python:3.13-slim-bookworm
 FROM ${BASE_IMAGE}
 
+# Database type arguments - passed from .env via build command
+ARG DATA_REL_TYPE=""
+ARG DATA_NONREL_TYPE=""
+
 ENV WORKDIR="/app"
 ENV APP_PORT_HOST=${APP_PORT_HOST}
 ENV APP_PORT_CONTAINER=${APP_PORT_CONTAINER}
@@ -9,25 +13,42 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 RUN echo "###### DOCKER BUILD STARTED #####"
 
-RUN echo "Installing necessary packages..." && \
+# Base packages
+RUN echo "Installing base packages..." && \
     apt-get update && \
     apt-get install -y \
         build-essential \
         ca-certificates \
         curl \
         git \
-        libpq-dev \
         libssl-dev \
         openssl \
         vim && \
-    echo "...finished installing necessary packages." && \
-    echo "Updating CA certificates..." && \
-    update-ca-certificates && \
-    echo "...finished updating CA certificates." && \
-    echo "Cleaning up to reduce image size..." && \
+    echo "...finished installing base packages."
+
+# PostgreSQL libraries (if needed)
+RUN if [ "$DATA_REL_TYPE" = "postgres" ]; then \
+        echo "Installing PostgreSQL libraries..." && \
+        apt-get install -y libpq-dev postgresql-client && \
+        echo "...finished installing PostgreSQL libraries."; \
+    fi
+
+# MySQL/MariaDB libraries (if needed)
+RUN if [ "$DATA_REL_TYPE" = "mysql" ] || [ "$DATA_REL_TYPE" = "mariadb" ]; then \
+        echo "Installing MySQL libraries..." && \
+        apt-get install -y default-libmysqlclient-dev default-mysql-client pkg-config && \
+        echo "...finished installing MySQL libraries."; \
+    fi
+
+# Cleanup
+RUN echo "Cleaning up to reduce image size..." && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     echo "...finished cleaning up."
+
+RUN echo "Updating CA certificates..." && \
+    update-ca-certificates && \
+    echo "...finished updating CA certificates."
 
 # Install pip and poetry
 RUN echo "Installing pip and poetry..." && \
@@ -35,6 +56,35 @@ RUN echo "Installing pip and poetry..." && \
     pip install --no-cache-dir poetry && \
     poetry config virtualenvs.create false && \
     echo "...finished installing pip and poetry."
+
+# Install database drivers based on configuration
+# PostgreSQL driver
+RUN if [ "$DATA_REL_TYPE" = "postgres" ]; then \
+        echo "Installing psycopg2 (PostgreSQL driver)..." && \
+        pip install --no-cache-dir psycopg2-binary && \
+        echo "...finished installing PostgreSQL driver."; \
+    fi
+
+# MySQL driver
+RUN if [ "$DATA_REL_TYPE" = "mysql" ] || [ "$DATA_REL_TYPE" = "mariadb" ]; then \
+        echo "Installing mysqlclient (MySQL driver)..." && \
+        pip install --no-cache-dir mysqlclient pymysql && \
+        echo "...finished installing MySQL driver."; \
+    fi
+
+# MongoDB driver
+RUN if [ "$DATA_NONREL_TYPE" = "mongodb" ]; then \
+        echo "Installing pymongo (MongoDB driver)..." && \
+        pip install --no-cache-dir pymongo motor && \
+        echo "...finished installing MongoDB driver."; \
+    fi
+
+# Neo4j driver
+RUN if [ "$DATA_NONREL_TYPE" = "neo4j" ]; then \
+        echo "Installing neo4j (Neo4j driver)..." && \
+        pip install --no-cache-dir neo4j && \
+        echo "...finished installing Neo4j driver."; \
+    fi
 
 ENV TZ=America/New_York
 RUN echo "Setting timezone to $TZ..." && \

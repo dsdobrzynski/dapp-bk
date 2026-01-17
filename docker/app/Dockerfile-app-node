@@ -1,6 +1,10 @@
 ARG BASE_IMAGE=node:22-bookworm-slim
 FROM ${BASE_IMAGE}
 
+# Database type arguments - passed from .env via build command
+ARG DATA_REL_TYPE=""
+ARG DATA_NONREL_TYPE=""
+
 ENV WORKDIR="/app"
 ENV APP_PORT_HOST=${APP_PORT_HOST}
 ENV APP_PORT_CONTAINER=${APP_PORT_CONTAINER}
@@ -8,7 +12,8 @@ ENV NODE_ENV=production
 
 RUN echo "###### DOCKER BUILD STARTED #####"
 
-RUN echo "Installing necessary packages..." && \
+# Base packages
+RUN echo "Installing base packages..." && \
     apt-get update && \
     apt-get install -y \
         ca-certificates \
@@ -16,14 +21,38 @@ RUN echo "Installing necessary packages..." && \
         git \
         openssl \
         vim && \
-    echo "...finished installing necessary packages." && \
-    echo "Updating CA certificates..." && \
-    update-ca-certificates && \
-    echo "...finished updating CA certificates." && \
-    echo "Cleaning up to reduce image size..." && \
+    echo "...finished installing base packages."
+
+# PostgreSQL client (if needed for native bindings)
+RUN if [ "$DATA_REL_TYPE" = "postgres" ]; then \
+        echo "Installing PostgreSQL client..." && \
+        apt-get install -y postgresql-client libpq-dev && \
+        echo "...finished installing PostgreSQL client."; \
+    fi
+
+# MySQL client (if needed)
+RUN if [ "$DATA_REL_TYPE" = "mysql" ] || [ "$DATA_REL_TYPE" = "mariadb" ]; then \
+        echo "Installing MySQL client..." && \
+        apt-get install -y default-mysql-client && \
+        echo "...finished installing MySQL client."; \
+    fi
+
+# Build tools for native modules (MongoDB, etc.)
+RUN if [ "$DATA_NONREL_TYPE" = "mongodb" ] || [ "$DATA_NONREL_TYPE" = "neo4j" ]; then \
+        echo "Installing build tools for native modules..." && \
+        apt-get install -y build-essential python3 && \
+        echo "...finished installing build tools."; \
+    fi
+
+# Cleanup
+RUN echo "Cleaning up to reduce image size..." && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     echo "...finished cleaning up."
+
+RUN echo "Updating CA certificates..." && \
+    update-ca-certificates && \
+    echo "...finished updating CA certificates."
 
 # Install pnpm (faster alternative to npm)
 RUN echo "Installing pnpm..." && \
