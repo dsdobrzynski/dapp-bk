@@ -550,8 +550,266 @@ class BuildCommand extends Command
         $containerName = $this->env['PROJECT_NAME'] . '-data-nonrel-container';
         $io->section("Non-Relational Database: $containerName");
 
-        $io->text('Non-relational database container handling...');
+        $rebuildData = $input->getOption('rebuild-data');
+        $dataNonRelType = $this->env['DATA_NONREL_TYPE'];
+
+        // Check if container exists
+        $process = new Process(['docker', 'ps', '-a', '--filter', "name=$containerName", '--format', '{{.Names}}']);
+        $process->run();
+        $exists = trim($process->getOutput()) === $containerName;
+
+        if ($exists && !$rebuildData) {
+            // Check if running
+            $process = new Process(['docker', 'inspect', '-f', '{{.State.Status}}', $containerName]);
+            $process->run();
+            $status = trim($process->getOutput());
+
+            if ($status === 'running') {
+                $io->text("Container $containerName is already running");
+                return true;
+            }
+
+            $io->text("Starting container $containerName");
+            $process = new Process(['docker', 'start', $containerName]);
+            $process->run();
+            return $process->isSuccessful();
+        }
+
+        if ($exists && $rebuildData) {
+            $io->text("Removing existing container for rebuild");
+            $process = new Process(['docker', 'stop', $containerName]);
+            $process->run();
+            $process = new Process(['docker', 'rm', '-v', $containerName]);
+            $process->run();
+        }
+
+        // Try to get configuration from docker-compose.yml first
+        $composeConfig = $this->parseDockerComposeForNonRel($io);
         
+        if ($composeConfig) {
+            return $this->runNonRelContainerFromCompose($io, $containerName, $composeConfig);
+        }
+
+        // Fallback to building from Dockerfile
+        return $this->buildNonRelDataContainer($io, $containerName, $dataNonRelType, $input);
+    }
+
+    private function parseDockerComposeForNonRel(SymfonyStyle $io): ?array
+    {
+        $composeFile = $this->projectRoot . '/docker-compose.yml';
+        
+        if (!file_exists($composeFile)) {
+            return null;
+        }
+
+        $content = file_get_contents($composeFile);
+        $dataNonRelType = $this->env['DATA_NONREL_TYPE'] ?? 'mongodb';
+        
+        // Simple YAML parsing for docker-compose mongodb/neo4j service
+        $config = [];
+        
+        // Extract image
+        if (preg_match('/^\s*' . preg_quote($dataNonRelType, '/') . ':\s*\n(.*?)(?=^\s*\w+:|$)/ms', $content, $serviceMatch)) {
+            $serviceBlock = $serviceMatch[1];
+            
+            // Get image
+            if (preg_match('/^\s*image:\s*(.+)$/m', $serviceBlock, $match)) {
+                $config['image'] = trim($match[1]);
+            }
+            
+            // Get environment variables
+            $config['environment'] = [];
+            if (preg_match('/^\s*environment:\s*\n((?:\s+-\s*.+\n?)+)/m', $serviceBlock, $envMatch)) {
+                preg_match_all('/^\s+-\s*(.+)$/m', $envMatch[1], $envVars);
+                foreach ($envVars[1] as $envVar) {
+                    $config['environment'][] = trim($envVar);
+                }
+            }
+            
+            // Get ports
+            if (preg_match('/^\s*ports:\s*\n((?:\s+-\s*.+\n?)+)/m', $serviceBlock, $portsMatch)) {
+                preg_match_all('/^\s+-\s*["\']?(\d+):(\d+)["\']?$/m', $portsMatch[1], $ports);
+                if (!empty($ports[1])) {
+                    $config['hostPort'] = $ports[1][0];
+                    $config['containerPort'] = $ports[2][0];
+                }
+            }
+            
+            // Get volumes
+            $config['volumes'] = [];
+            if (preg_match('/^\s*volumes:\s*\n((?:\s+-\s*.+\n?)+)/m', $serviceBlock, $volMatch)) {
+                preg_match_all('/^\s+-\s*(.+)$/m', $volMatch[1], $vols);
+                foreach ($vols[1] as $vol) {
+                    $config['volumes'][] = trim($vol);
+                }
+            }
+        }
+        
+        return !empty($config['image']) ? $config : null;
+    }
+
+    private function runNonRelContainerFromCompose(SymfonyStyle $io, string $containerName, array $config): bool
+    {
+        $networkName = $this->env['PROJECT_NAME'] . '-network';
+        $image = $config['image'];
+        
+        // Pull the image first
+        $io->text("Pulling image: $image");
+        $process = new Process(['docker', 'pull', $image]);
+        $process->setTimeout(300); // 5 minutes for image pull
+        $process->run(function ($type, $buffer) use ($io) {
+            $io->write($buffer);
+        });
+
+        if (!$process->isSuccessful()) {
+            $io->error("Failed to pull image: " . $process->getErrorOutput());
+            return false;
+        }
+
+        // Build run command
+        $hostPort = $config['hostPort'] ?? $this->env['DATA_NONREL_HOST_PORT'] ?? '27017';
+        $containerPort = $config['containerPort'] ?? '27017';
+
+        $runCommand = [
+            'docker', 'run', '-d',
+            '--name', $containerName,
+            '--network', $networkName,
+            '-p', "$hostPort:$containerPort",
+        ];
+
+        // Add environment variables
+        foreach ($config['environment'] as $envVar) {
+            $runCommand[] = '-e';
+            $runCommand[] = $envVar;
+        }
+
+        // Add named volumes (skip bind mounts)
+        $volumeName = $this->env['PROJECT_NAME'] . '-data-nonrel-volume';
+        $dataNonRelType = $this->env['DATA_NONREL_TYPE'] ?? 'mongodb';
+        
+        // Create volume if it doesn't exist
+        $process = new Process(['docker', 'volume', 'create', $volumeName]);
+        $process->run();
+
+        // Map volume based on database type
+        $volumePath = match($dataNonRelType) {
+            'mongodb' => '/data/db',
+            'neo4j' => '/data',
+            default => '/data',
+        };
+        
+        $runCommand[] = '-v';
+        $runCommand[] = "$volumeName:$volumePath";
+
+        $runCommand[] = $image;
+
+        $io->text("Starting container: $containerName on port $hostPort");
+        $process = new Process($runCommand);
+        $process->setTimeout(60);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $io->error("Failed to start container: " . $process->getErrorOutput());
+            return false;
+        }
+
+        $io->success("Non-relational database container started successfully");
+        return true;
+    }
+
+    private function buildNonRelDataContainer(SymfonyStyle $io, string $containerName, string $dataType, InputInterface $input): bool
+    {
+        $dockerfile = $this->env['DATA_NONREL_DOCKERFILE'] ?? $this->getDefaultDataDockerfile($dataType);
+        $dockerfilePath = $this->findDockerfile($dockerfile);
+
+        if (!$dockerfilePath) {
+            $io->error("Dockerfile not found: $dockerfile");
+            $io->note("Consider adding a docker-compose.yml with the $dataType service configuration");
+            return false;
+        }
+
+        $io->text("Building non-relational data container from: $dockerfilePath");
+
+        $buildContext = $this->projectRoot;
+        $dockerfileArg = $dockerfilePath;
+
+        // Build image
+        $imageName = $this->env['PROJECT_NAME'] . '-data-nonrel-image';
+        $buildCommand = [
+            'docker', 'build',
+            '-f', $dockerfileArg,
+            '-t', $imageName,
+        ];
+
+        if ($input->getOption('no-cache')) {
+            $buildCommand[] = '--no-cache';
+            $io->text('Building without cache');
+        }
+
+        $buildCommand[] = $buildContext;
+
+        $process = new Process($buildCommand);
+        $process->setTimeout(600);
+        $io->text("Building image: $imageName");
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $io->error("Failed to build image: " . $process->getErrorOutput());
+            return false;
+        }
+
+        // Run container
+        return $this->runNonRelDataContainer($io, $containerName, $imageName);
+    }
+
+    private function runNonRelDataContainer(SymfonyStyle $io, string $containerName, string $imageName): bool
+    {
+        $networkName = $this->env['PROJECT_NAME'] . '-network';
+        $hostPort = $this->env['DATA_NONREL_HOST_PORT'] ?? '27017';
+        $containerPort = $this->env['DATA_NONREL_CONTAINER_PORT'] ?? '27017';
+        $dataType = $this->env['DATA_NONREL_TYPE'] ?? 'mongodb';
+        
+        // Database credentials
+        $dbName = $this->env['DATA_NONREL_NAME'] ?? 'app_nonrel';
+        $dbUser = $this->env['DATA_NONREL_USERNAME'] ?? 'root';
+        $dbPassword = $this->env['DATA_NONREL_PASSWORD'] ?? 'secret';
+
+        $runCommand = [
+            'docker', 'run', '-d',
+            '--name', $containerName,
+            '--network', $networkName,
+            '-p', "$hostPort:$containerPort",
+        ];
+
+        // Add database-specific environment variables
+        switch ($dataType) {
+            case 'mongodb':
+                $runCommand[] = '-e';
+                $runCommand[] = "MONGO_INITDB_DATABASE=$dbName";
+                $runCommand[] = '-e';
+                $runCommand[] = "MONGO_INITDB_ROOT_USERNAME=$dbUser";
+                $runCommand[] = '-e';
+                $runCommand[] = "MONGO_INITDB_ROOT_PASSWORD=$dbPassword";
+                break;
+            case 'neo4j':
+                $runCommand[] = '-e';
+                $runCommand[] = "NEO4J_AUTH=$dbUser/$dbPassword";
+                break;
+        }
+
+        $runCommand[] = $imageName;
+
+        $io->text("Starting container: $containerName on port $hostPort");
+        $process = new Process($runCommand);
+        $process->setTimeout(60);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            $io->error("Failed to start container: " . $process->getErrorOutput());
+            return false;
+        }
+
+        $io->success("Non-relational data container started successfully");
         return true;
     }
 
