@@ -1,4 +1,4 @@
-fimport fs from 'fs/promises';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
@@ -19,34 +19,39 @@ export async function findProjectRoot() {
 
   for (let i = 0; i < maxLevels; i++) {
     try {
+      await fs.access(path.join(current, '.env'));
+      return current;
+    } catch {}
+
+    try {
       await fs.access(path.join(current, 'build', '.env'));
       return current;
-    } catch {
-      const parent = path.dirname(current);
-      if (parent === current) break;
-      current = parent;
-    }
+    } catch {}
+
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
 
-  // Check if we're in build directory
-  try {
-    await fs.access(path.join(process.cwd(), '.env'));
-    return path.dirname(process.cwd());
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 /**
  * Load environment variables from .env
  */
 export async function loadEnvironment(projectRoot) {
-  const envFile = path.join(projectRoot, 'build', '.env');
+  let envFile = path.join(projectRoot, '.env');
 
   try {
     await fs.access(envFile);
   } catch {
-    console.error(chalk.red(`Error: Environment file not found: ${envFile}`));
+    envFile = path.join(projectRoot, 'build', '.env');
+  }
+
+  try {
+    await fs.access(envFile);
+  } catch {
+    console.error(chalk.red(`Error: Environment file not found in project root or build/`));
     console.log('Please create .env from .env.example');
     return null;
   }
@@ -261,7 +266,11 @@ async function buildAppContainer(docker, env, projectRoot, containerName) {
       {
         dockerfile: dockerfile,
         t: containerName,
-        buildargs: env.APP_BASE_IMAGE ? { BASE_IMAGE: env.APP_BASE_IMAGE } : undefined,
+        buildargs: {
+          ...(env.APP_BASE_IMAGE    ? { BASE_IMAGE: env.APP_BASE_IMAGE }           : {}),
+          ...(env.DATA_REL_TYPE     ? { DATA_REL_TYPE: env.DATA_REL_TYPE }         : {}),
+          ...(env.DATA_NONREL_TYPE  ? { DATA_NONREL_TYPE: env.DATA_NONREL_TYPE }   : {}),
+        },
       }
     );
 
@@ -293,9 +302,9 @@ async function buildAppContainer(docker, env, projectRoot, containerName) {
     };
 
     // Add volume mounts if specified
-    if (env.APP_VOLUME_HOST) {
+    if (env.APP_HOST_VOLUME_PATH) {
       createOptions.HostConfig.Binds = [
-        `${env.APP_VOLUME_HOST}:${env.APP_VOLUME_CONTAINER || '/var/www/html'}:rw`,
+        `${env.APP_HOST_VOLUME_PATH}:${env.APP_CONTAINER_VOLUME_PATH || '/var/www/html'}:rw`,
       ];
     }
 
@@ -315,17 +324,259 @@ async function buildAppContainer(docker, env, projectRoot, containerName) {
  * Handle database containers
  */
 async function handleDataContainers(docker, env, projectRoot, rebuild, importData) {
-  // Simplified implementation
   if (env.DATA_REL_TYPE) {
-    console.log();
-    console.log(chalk.cyan('Relational database container handling...'));
+    if (!(await handleRelationalDatabase(docker, env, projectRoot, rebuild))) {
+      return false;
+    }
   }
 
   if (env.DATA_NONREL_TYPE) {
-    console.log(chalk.cyan('Non-relational database container handling...'));
+    if (!(await handleNonRelationalDatabase(docker, env, projectRoot, rebuild))) {
+      return false;
+    }
   }
 
   return true;
+}
+
+/**
+ * Handle relational database container
+ */
+async function handleRelationalDatabase(docker, env, projectRoot, rebuild) {
+  const containerName = `${env.PROJECT_NAME}-data-rel-container`;
+  console.log();
+  console.log(chalk.cyan(`Relational Database: ${containerName}`));
+
+  try {
+    const container = docker.getContainer(containerName);
+    const info = await container.inspect();
+
+    if (!rebuild) {
+      if (info.State.Status === 'running') {
+        console.log(`Container ${containerName} is already running`);
+        return true;
+      }
+      console.log(`Starting container ${containerName}`);
+      await container.start();
+      return true;
+    }
+
+    console.log('Removing existing container for rebuild');
+    if (info.State.Status === 'running') {
+      await container.stop();
+    }
+    await container.remove({ v: true });
+  } catch (error) {
+    // Container doesn't exist, continue to build
+  }
+
+  return await buildDataContainer(docker, env, projectRoot, containerName, 'rel');
+}
+
+/**
+ * Handle non-relational database container
+ */
+async function handleNonRelationalDatabase(docker, env, projectRoot, rebuild) {
+  const containerName = `${env.PROJECT_NAME}-data-nonrel-container`;
+  console.log();
+  console.log(chalk.cyan(`Non-Relational Database: ${containerName}`));
+
+  try {
+    const container = docker.getContainer(containerName);
+    const info = await container.inspect();
+
+    if (!rebuild) {
+      if (info.State.Status === 'running') {
+        console.log(`Container ${containerName} is already running`);
+        return true;
+      }
+      console.log(`Starting container ${containerName}`);
+      await container.start();
+      return true;
+    }
+
+    console.log('Removing existing container for rebuild');
+    if (info.State.Status === 'running') {
+      await container.stop();
+    }
+    await container.remove({ v: true });
+  } catch (error) {
+    // Container doesn't exist, continue to build
+  }
+
+  return await buildDataContainer(docker, env, projectRoot, containerName, 'nonrel');
+}
+
+/**
+ * Build and run a data container (rel or nonrel)
+ */
+async function buildDataContainer(docker, env, projectRoot, containerName, kind) {
+  const isRel = kind === 'rel';
+  const dataType = isRel ? (env.DATA_REL_TYPE || 'postgres') : env.DATA_NONREL_TYPE;
+  const dockerfileKey = isRel ? 'DATA_REL_DOCKERFILE' : 'DATA_NONREL_DOCKERFILE';
+  const dockerfile = env[dockerfileKey] || getDefaultDataDockerfile(dataType);
+  const dockerfilePath = path.join(projectRoot, dockerfile);
+
+  try {
+    await fs.access(dockerfilePath);
+  } catch {
+    console.error(chalk.red(`Error: Dockerfile not found: ${dockerfilePath}`));
+    return false;
+  }
+
+  console.log(`Building data container from: ${dockerfile}`);
+
+  try {
+    const imagePrefix = isRel ? 'data-rel' : 'data-nonrel';
+    const imageName = `${env.PROJECT_NAME}-${imagePrefix}-image`;
+
+    const stream = await docker.buildImage(
+      { context: projectRoot, src: ['.'] },
+      { dockerfile, t: imageName }
+    );
+
+    await new Promise((resolve, reject) => {
+      docker.modem.followProgress(stream, (err, res) => (err ? reject(err) : resolve(res)), (event) => {
+        if (event.stream) process.stdout.write(event.stream);
+      });
+    });
+
+    return await runDataContainer(docker, env, containerName, imageName, kind);
+  } catch (error) {
+    console.error(chalk.red(`Error: Failed to build data container: ${error.message}`));
+    return false;
+  }
+}
+
+/**
+ * Run data container with type-specific configuration
+ */
+async function runDataContainer(docker, env, containerName, imageName, kind) {
+  const isRel = kind === 'rel';
+  const dataType = isRel ? (env.DATA_REL_TYPE || 'postgres') : env.DATA_NONREL_TYPE;
+  const hostPortKey = isRel ? 'DATA_REL_HOST_PORT' : 'DATA_NONREL_HOST_PORT';
+  const hostPort = env[hostPortKey] || getDefaultDataPort(dataType);
+
+  console.log(`Starting container: ${containerName} on port ${hostPort}`);
+
+  try {
+    const createOptions = buildDataContainerConfig(env, containerName, imageName, kind);
+    const container = await docker.createContainer(createOptions);
+    await container.start();
+    console.log(chalk.green('✓ Data container started successfully'));
+    return true;
+  } catch (error) {
+    console.error(chalk.red(`Error: Failed to run data container: ${error.message}`));
+    return false;
+  }
+}
+
+/**
+ * Build createContainer options for a data container (exported for testing)
+ */
+export function buildDataContainerConfig(env, containerName, imageName, kind) {
+  const isRel = kind === 'rel';
+  const dataType = isRel ? (env.DATA_REL_TYPE || 'postgres') : env.DATA_NONREL_TYPE;
+  const networkName = `${env.PROJECT_NAME}-network`;
+  const hostPortKey = isRel ? 'DATA_REL_HOST_PORT' : 'DATA_NONREL_HOST_PORT';
+  const containerPortKey = isRel ? 'DATA_REL_CONTAINER_PORT' : 'DATA_NONREL_CONTAINER_PORT';
+  const hostPort = env[hostPortKey] || getDefaultDataPort(dataType);
+  const containerPort = env[containerPortKey] || getDefaultDataPort(dataType);
+
+  const createOptions = {
+    name: containerName,
+    Image: imageName,
+    Env: buildDataEnvVars(env, dataType, isRel),
+    HostConfig: {
+      NetworkMode: networkName,
+      PortBindings: {
+        [`${containerPort}/tcp`]: [{ HostPort: hostPort }],
+      },
+    },
+    ExposedPorts: {
+      [`${containerPort}/tcp`]: {},
+    },
+  };
+
+  const hostVolKey = isRel ? 'DATA_REL_HOST_VOLUME_PATH' : 'DATA_NONREL_HOST_VOLUME_PATH';
+  const containerVolKey = isRel ? 'DATA_REL_CONTAINER_VOLUME_PATH' : 'DATA_NONREL_CONTAINER_VOLUME_PATH';
+  if (env[hostVolKey]) {
+    createOptions.HostConfig.Binds = [
+      `${env[hostVolKey]}:${env[containerVolKey] || getDefaultDataVolume(dataType)}:rw`,
+    ];
+  }
+
+  return createOptions;
+}
+
+/**
+ * Build Env array for a data container (exported for testing)
+ */
+export function buildDataEnvVars(env, dataType, isRel) {
+  const prefix = isRel ? 'DATA_REL' : 'DATA_NONREL';
+  const dbName = env[`${prefix}_NAME`] || 'appdb';
+  const dbUser = env[`${prefix}_USERNAME`] || 'appuser';
+  const dbPassword = env[`${prefix}_PASSWORD`] || 'apppass';
+
+  switch (dataType) {
+    case 'mysql':
+    case 'mariadb':
+      return [
+        `MYSQL_DATABASE=${dbName}`,
+        `MYSQL_USER=${dbUser}`,
+        `MYSQL_PASSWORD=${dbPassword}`,
+        `MYSQL_ROOT_PASSWORD=${dbPassword}`,
+      ];
+    case 'mongodb':
+      return [
+        `MONGO_INITDB_DATABASE=${dbName}`,
+        `MONGO_INITDB_ROOT_USERNAME=${dbUser}`,
+        `MONGO_INITDB_ROOT_PASSWORD=${dbPassword}`,
+      ];
+    case 'neo4j':
+      return [`NEO4J_AUTH=${dbUser}/${dbPassword}`];
+    case 'postgres':
+    default:
+      return [
+        `POSTGRES_DB=${dbName}`,
+        `POSTGRES_USER=${dbUser}`,
+        `POSTGRES_PASSWORD=${dbPassword}`,
+      ];
+  }
+}
+
+/**
+ * Get default Dockerfile path for data type (exported for testing)
+ */
+export function getDefaultDataDockerfile(dataType) {
+  const dockerfiles = {
+    'mysql':    'docker/data-rel/Dockerfile-data-mysql',
+    'mariadb':  'docker/data-rel/Dockerfile-data-mariadb',
+    'postgres': 'docker/data-rel/Dockerfile-data-postgres',
+    'mongodb':  'docker/data-nonrel/Dockerfile-data-mongodb',
+    'neo4j':    'docker/data-nonrel/Dockerfile-data-neo4j',
+  };
+  return dockerfiles[dataType] || `docker/data-rel/Dockerfile-data-${dataType}`;
+}
+
+/**
+ * Get default port for a database type
+ */
+function getDefaultDataPort(dataType) {
+  if (dataType === 'mysql' || dataType === 'mariadb') return '3306';
+  if (dataType === 'neo4j') return '7687';
+  if (dataType === 'mongodb') return '27017';
+  return '5432';
+}
+
+/**
+ * Get default container volume path for a data type
+ */
+function getDefaultDataVolume(dataType) {
+  if (dataType === 'postgres') return '/var/lib/postgresql/data';
+  if (dataType === 'mongodb') return '/data/db';
+  if (dataType === 'neo4j') return '/data';
+  return '/var/lib/mysql';
 }
 
 /**

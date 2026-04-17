@@ -184,25 +184,25 @@ def find_project_root() -> Optional[Path]:
     max_levels = 5
 
     for _ in range(max_levels):
+        if (current / '.env').exists():
+            return current
         if (current / 'build' / '.env').exists():
             return current
         if current.parent == current:
             break
         current = current.parent
 
-    # Check if we're in build directory
-    if (Path.cwd() / '.env').exists():
-        return Path.cwd().parent
-
     return None
 
 
 def load_environment(project_root: Path) -> Optional[Dict[str, str]]:
     """Load environment variables from .env"""
-    env_file = project_root / 'build' / '.env'
+    env_file = project_root / '.env'
+    if not env_file.exists():
+        env_file = project_root / 'build' / '.env'
 
     if not env_file.exists():
-        click.secho(f'Error: Environment file not found: {env_file}', fg='red')
+        click.secho('Error: Environment file not found in project root or build/', fg='red')
         click.echo('Please create .env from .env.example')
         return None
 
@@ -303,7 +303,11 @@ def build_app_container(client: docker.DockerClient, env: Dict[str, str],
             path=str(project_root),
             dockerfile=dockerfile,
             tag=container_name,
-            buildargs={'BASE_IMAGE': env.get('APP_BASE_IMAGE', '')} if env.get('APP_BASE_IMAGE') else None
+            buildargs={
+                **({'BASE_IMAGE': env['APP_BASE_IMAGE']}           if env.get('APP_BASE_IMAGE')   else {}),
+                **({'DATA_REL_TYPE': env['DATA_REL_TYPE']}         if env.get('DATA_REL_TYPE')    else {}),
+                **({'DATA_NONREL_TYPE': env['DATA_NONREL_TYPE']}   if env.get('DATA_NONREL_TYPE') else {}),
+            } or None
         )
 
         for log in build_logs:
@@ -318,9 +322,9 @@ def build_app_container(client: docker.DockerClient, env: Dict[str, str],
         ports = {f'{container_port}/tcp': host_port}
         
         volumes = {}
-        if env.get('APP_VOLUME_HOST'):
-            volumes[env['APP_VOLUME_HOST']] = {
-                'bind': env.get('APP_VOLUME_CONTAINER', '/var/www/html'),
+        if env.get('APP_HOST_VOLUME_PATH'):
+            volumes[env['APP_HOST_VOLUME_PATH']] = {
+                'bind': env.get('APP_CONTAINER_VOLUME_PATH', '/var/www/html'),
                 'mode': 'rw'
             }
 
@@ -342,17 +346,222 @@ def build_app_container(client: docker.DockerClient, env: Dict[str, str],
         return False
 
 
-def handle_data_containers(client: docker.DockerClient, env: Dict[str, str], 
+def handle_data_containers(client: docker.DockerClient, env: Dict[str, str],
                           project_root: Path, rebuild: bool, import_data: bool) -> bool:
     """Handle database containers"""
-    # Simplified implementation - full version would mirror bash script logic
     if env.get('DATA_REL_TYPE'):
-        click.secho('\nRelational database container handling...', fg='cyan')
-    
+        if not handle_relational_database(client, env, project_root, rebuild):
+            return False
+
     if env.get('DATA_NONREL_TYPE'):
-        click.secho('Non-relational database container handling...', fg='cyan')
-    
+        if not handle_non_relational_database(client, env, project_root, rebuild):
+            return False
+
     return True
+
+
+def handle_relational_database(client: docker.DockerClient, env: Dict[str, str],
+                               project_root: Path, rebuild: bool) -> bool:
+    """Handle relational database container"""
+    container_name = f"{env['PROJECT_NAME']}-data-rel-container"
+    click.secho(f'\nRelational Database: {container_name}', fg='cyan')
+
+    container = None
+    exists = False
+    try:
+        container = client.containers.get(container_name)
+        exists = True
+    except docker.errors.NotFound:
+        pass
+
+    if exists and not rebuild:
+        if container.status == 'running':
+            click.echo(f'Container {container_name} is already running')
+            return True
+        click.echo(f'Starting container {container_name}')
+        container.start()
+        return True
+
+    if exists and rebuild:
+        click.echo('Removing existing container for rebuild')
+        if container.status == 'running':
+            container.stop()
+        container.remove(v=True)
+
+    return build_data_container(client, env, project_root, container_name, 'rel')
+
+
+def handle_non_relational_database(client: docker.DockerClient, env: Dict[str, str],
+                                   project_root: Path, rebuild: bool) -> bool:
+    """Handle non-relational database container"""
+    container_name = f"{env['PROJECT_NAME']}-data-nonrel-container"
+    click.secho(f'\nNon-Relational Database: {container_name}', fg='cyan')
+
+    container = None
+    exists = False
+    try:
+        container = client.containers.get(container_name)
+        exists = True
+    except docker.errors.NotFound:
+        pass
+
+    if exists and not rebuild:
+        if container.status == 'running':
+            click.echo(f'Container {container_name} is already running')
+            return True
+        click.echo(f'Starting container {container_name}')
+        container.start()
+        return True
+
+    if exists and rebuild:
+        click.echo('Removing existing container for rebuild')
+        if container.status == 'running':
+            container.stop()
+        container.remove(v=True)
+
+    return build_data_container(client, env, project_root, container_name, 'nonrel')
+
+
+def build_data_container(client: docker.DockerClient, env: Dict[str, str],
+                        project_root: Path, container_name: str, kind: str) -> bool:
+    """Build and run a data container"""
+    is_rel = kind == 'rel'
+    data_type = env.get('DATA_REL_TYPE', 'postgres') if is_rel else env.get('DATA_NONREL_TYPE', '')
+    dockerfile_key = 'DATA_REL_DOCKERFILE' if is_rel else 'DATA_NONREL_DOCKERFILE'
+    dockerfile = env.get(dockerfile_key) or get_default_data_dockerfile(data_type)
+    dockerfile_path = project_root / dockerfile
+
+    if not dockerfile_path.exists():
+        click.secho(f'Error: Dockerfile not found: {dockerfile_path}', fg='red')
+        return False
+
+    click.echo(f'Building data container from: {dockerfile}')
+
+    try:
+        prefix = 'data-rel' if is_rel else 'data-nonrel'
+        image_name = f"{env['PROJECT_NAME']}-{prefix}-image"
+
+        image, build_logs = client.images.build(
+            path=str(project_root),
+            dockerfile=dockerfile,
+            tag=image_name,
+        )
+
+        for log in build_logs:
+            if 'stream' in log:
+                click.echo(log['stream'], nl=False)
+
+        return run_data_container(client, env, container_name, image_name, kind)
+
+    except Exception as e:
+        click.secho(f'Error: Failed to build data container: {e}', fg='red')
+        return False
+
+
+def run_data_container(client: docker.DockerClient, env: Dict[str, str],
+                      container_name: str, image_name: str, kind: str) -> bool:
+    """Run a data container with type-specific configuration"""
+    is_rel = kind == 'rel'
+    data_type = env.get('DATA_REL_TYPE', 'postgres') if is_rel else env.get('DATA_NONREL_TYPE', '')
+    host_port_key = 'DATA_REL_HOST_PORT' if is_rel else 'DATA_NONREL_HOST_PORT'
+    container_port_key = 'DATA_REL_CONTAINER_PORT' if is_rel else 'DATA_NONREL_CONTAINER_PORT'
+    host_port = env.get(host_port_key) or get_default_data_port(data_type)
+    container_port = env.get(container_port_key) or get_default_data_port(data_type)
+    network_name = f"{env['PROJECT_NAME']}-network"
+
+    click.echo(f'Starting container: {container_name} on port {host_port}')
+
+    try:
+        env_vars = build_data_env_vars(env, data_type, is_rel)
+        ports = {f'{container_port}/tcp': host_port}
+        volumes = {}
+
+        host_vol_key = 'DATA_REL_HOST_VOLUME_PATH' if is_rel else 'DATA_NONREL_HOST_VOLUME_PATH'
+        container_vol_key = 'DATA_REL_CONTAINER_VOLUME_PATH' if is_rel else 'DATA_NONREL_CONTAINER_VOLUME_PATH'
+        if env.get(host_vol_key):
+            volumes[env[host_vol_key]] = {
+                'bind': env.get(container_vol_key) or get_default_data_volume(data_type),
+                'mode': 'rw',
+            }
+
+        client.containers.run(
+            image_name,
+            name=container_name,
+            network=network_name,
+            environment=env_vars,
+            ports=ports,
+            volumes=volumes,
+            detach=True,
+        )
+
+        click.secho('✓ Data container started successfully', fg='green')
+        return True
+
+    except Exception as e:
+        click.secho(f'Error: Failed to run data container: {e}', fg='red')
+        return False
+
+
+def build_data_env_vars(env: Dict[str, str], data_type: str, is_rel: bool) -> Dict[str, str]:
+    """Build environment variables dict for a data container"""
+    prefix = 'DATA_REL' if is_rel else 'DATA_NONREL'
+    db_name = env.get(f'{prefix}_NAME', 'appdb')
+    db_user = env.get(f'{prefix}_USERNAME', 'appuser')
+    db_password = env.get(f'{prefix}_PASSWORD', 'apppass')
+
+    if data_type in ('mysql', 'mariadb'):
+        return {
+            'MYSQL_DATABASE': db_name,
+            'MYSQL_USER': db_user,
+            'MYSQL_PASSWORD': db_password,
+            'MYSQL_ROOT_PASSWORD': db_password,
+        }
+    if data_type == 'mongodb':
+        return {
+            'MONGO_INITDB_DATABASE': db_name,
+            'MONGO_INITDB_ROOT_USERNAME': db_user,
+            'MONGO_INITDB_ROOT_PASSWORD': db_password,
+        }
+    if data_type == 'neo4j':
+        return {'NEO4J_AUTH': f'{db_user}/{db_password}'}
+    return {
+        'POSTGRES_DB': db_name,
+        'POSTGRES_USER': db_user,
+        'POSTGRES_PASSWORD': db_password,
+    }
+
+
+def get_default_data_dockerfile(data_type: str) -> str:
+    """Get default Dockerfile path for data type"""
+    dockerfiles = {
+        'mysql':    'docker/data-rel/Dockerfile-data-mysql',
+        'mariadb':  'docker/data-rel/Dockerfile-data-mariadb',
+        'postgres': 'docker/data-rel/Dockerfile-data-postgres',
+        'mongodb':  'docker/data-nonrel/Dockerfile-data-mongodb',
+        'neo4j':    'docker/data-nonrel/Dockerfile-data-neo4j',
+    }
+    return dockerfiles.get(data_type, f'docker/data-rel/Dockerfile-data-{data_type}')
+
+
+def get_default_data_port(data_type: str) -> str:
+    """Get default port for database type"""
+    if data_type in ('mysql', 'mariadb'):
+        return '3306'
+    if data_type == 'neo4j':
+        return '7687'
+    if data_type == 'mongodb':
+        return '27017'
+    return '5432'
+
+
+def get_default_data_volume(data_type: str) -> str:
+    """Get default container volume path for data type"""
+    volume_paths = {
+        'postgres': '/var/lib/postgresql/data',
+        'mongodb':  '/data/db',
+        'neo4j':    '/data',
+    }
+    return volume_paths.get(data_type, '/var/lib/mysql')
 
 
 def install_composer(container) -> bool:

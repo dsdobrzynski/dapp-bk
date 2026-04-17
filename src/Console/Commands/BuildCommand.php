@@ -476,48 +476,10 @@ class BuildCommand extends Command
 
     private function runDataContainer(SymfonyStyle $io, string $containerName, string $imageName): bool
     {
-        $networkName = $this->env['PROJECT_NAME'] . '-network';
-        $hostPort = $this->env['DATA_REL_HOST_PORT'] ?? '5432';
-        $containerPort = $this->env['DATA_REL_CONTAINER_PORT'] ?? '5432';
         $dataType = $this->env['DATA_REL_TYPE'] ?? 'postgres';
-        
-        // Database credentials
-        $dbName = $this->env['DATA_REL_NAME'] ?? 'appdb';
-        $dbUser = $this->env['DATA_REL_USERNAME'] ?? 'appuser';
-        $dbPassword = $this->env['DATA_REL_PASSWORD'] ?? 'apppass';
+        $hostPort = $this->env['DATA_REL_HOST_PORT'] ?? $this->getDefaultDataPort($dataType);
 
-        $runCommand = [
-            'docker', 'run', '-d',
-            '--name', $containerName,
-            '--network', $networkName,
-            '-p', "$hostPort:$containerPort",
-        ];
-
-        // Add database-specific environment variables
-        switch ($dataType) {
-            case 'mysql':
-            case 'mariadb':
-                $runCommand[] = '-e';
-                $runCommand[] = "MYSQL_DATABASE=$dbName";
-                $runCommand[] = '-e';
-                $runCommand[] = "MYSQL_USER=$dbUser";
-                $runCommand[] = '-e';
-                $runCommand[] = "MYSQL_PASSWORD=$dbPassword";
-                $runCommand[] = '-e';
-                $runCommand[] = "MYSQL_ROOT_PASSWORD=$dbPassword";
-                break;
-            case 'postgres':
-            default:
-                $runCommand[] = '-e';
-                $runCommand[] = "POSTGRES_DB=$dbName";
-                $runCommand[] = '-e';
-                $runCommand[] = "POSTGRES_USER=$dbUser";
-                $runCommand[] = '-e';
-                $runCommand[] = "POSTGRES_PASSWORD=$dbPassword";
-                break;
-        }
-
-        $runCommand[] = $imageName;
+        $runCommand = $this->buildDataRunCommand($containerName, $imageName);
 
         $io->text("Starting container: $containerName on port $hostPort");
         $process = new Process($runCommand);
@@ -531,6 +493,63 @@ class BuildCommand extends Command
 
         $io->success("Data container started successfully");
         return true;
+    }
+
+    protected function buildDataRunCommand(string $containerName, string $imageName): array
+    {
+        $dataType = $this->env['DATA_REL_TYPE'] ?? 'postgres';
+        $networkName = $this->env['PROJECT_NAME'] . '-network';
+        $hostPort = $this->env['DATA_REL_HOST_PORT'] ?? $this->getDefaultDataPort($dataType);
+        $containerPort = $this->env['DATA_REL_CONTAINER_PORT'] ?? $this->getDefaultDataPort($dataType);
+        $dbName = $this->env['DATA_REL_NAME'] ?? 'appdb';
+        $dbUser = $this->env['DATA_REL_USERNAME'] ?? 'appuser';
+        $dbPassword = $this->env['DATA_REL_PASSWORD'] ?? 'apppass';
+
+        $command = [
+            'docker', 'run', '-d',
+            '--name', $containerName,
+            '--network', $networkName,
+            '-p', "$hostPort:$containerPort",
+        ];
+
+        switch ($dataType) {
+            case 'mysql':
+            case 'mariadb':
+                array_push($command,
+                    '-e', "MYSQL_DATABASE=$dbName",
+                    '-e', "MYSQL_USER=$dbUser",
+                    '-e', "MYSQL_PASSWORD=$dbPassword",
+                    '-e', "MYSQL_ROOT_PASSWORD=$dbPassword"
+                );
+                break;
+            case 'postgres':
+            default:
+                array_push($command,
+                    '-e', "POSTGRES_DB=$dbName",
+                    '-e', "POSTGRES_USER=$dbUser",
+                    '-e', "POSTGRES_PASSWORD=$dbPassword"
+                );
+                break;
+        }
+
+        if (!empty($this->env['DATA_REL_HOST_VOLUME_PATH'])) {
+            $defaultContainerVol = ($dataType === 'postgres') ? '/var/lib/postgresql/data' : '/var/lib/mysql';
+            $hostVol = $this->env['DATA_REL_HOST_VOLUME_PATH'];
+            $containerVol = $this->env['DATA_REL_CONTAINER_VOLUME_PATH'] ?? $defaultContainerVol;
+            array_push($command, '-v', "$hostVol:$containerVol");
+        }
+
+        $command[] = $imageName;
+
+        return $command;
+    }
+
+    private function getDefaultDataPort(string $dataType): string
+    {
+        return match($dataType) {
+            'mysql', 'mariadb' => '3306',
+            default => '5432',
+        };
     }
 
     private function getDefaultDataDockerfile(string $dataType): string
